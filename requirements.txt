@@ -1,0 +1,7 @@
+tqdm
+torch
+torchvision
+numpy
+matplotlib
+sklearn
+gensim

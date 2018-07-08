@@ -1,0 +1,39 @@
+{
+    "embeddings": {
+        "use_pretrained_embeddings": true,
+        "embeddings_path": "embeddings/GoogleNews-vectors-negative300.bin.gz",
+        "embedding_dim": 300
+    },
+    "blocks": [
+        {  
+            "type": "bcnn",
+            "conv": {
+                "in_channels": 1,
+                "out_channels": 50,
+                "width": 3,
+                "height": 50
+            },
+            "pool": {
+                "width": 3
+            }
+        },
+        {
+            "type": "bcnn",
+            "conv": {
+                "in_channels": 50,
+                "out_channels": 50,
+                "width": 3,
+                "height": 50
+            },
+            "pool": {
+                "width": 3
+            }
+        }
+    ],
+    "train": {
+        "batch_size": 64,
+        "start_epoch": 1,
+        "num_epochs": 20,
+        "log_every": 0
+    }
+}
