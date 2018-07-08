@@ -14,6 +14,7 @@ from model.model import Model
 from model.pooling.allap import AllAP
 from model.pooling.widthap import WidthAP
 
+# Use GPU if available, otherwise use CPU
 USE_CUDA = torch.cuda.is_available()
 
 def read_config(config_path):
