@@ -3,6 +3,8 @@
 import torch
 import torch.nn as nn
 
+from model.pooling.allap import AllAP
+
 class BCNNBlock(nn.Module):
     """ Implements a single BCNN Block as described in this paper: 
 
@@ -14,9 +16,9 @@ class BCNNBlock(nn.Module):
 
             Args:
                 conv: Convolution module
-                    The convolution layer for the BCNN Block.
+                    The Convolution layer for the BCNN Block.
                 pool: Average Pooling module
-                    The average pooling layer for the BCNN Block.
+                    The Average Pooling layer for the BCNN Block.
 
             Returns:
                 None
@@ -33,9 +35,13 @@ class BCNNBlock(nn.Module):
                     The input to the BCNN Block.
 
             Returns:
-                out: torch.FloatTensor of shape (batch_size, 1, height, seq_len)
+                w_out: torch.FloatTensor of shape (batch_size, 1, height, seq_len)
                     This output is passed to the next Block in the Model.
+                a_out: torch.FloatTensor of shape (batch_size, height)
+                    This output is used to form the final representation returned
+                    by the model.
         """
         c = self.conv(x)
-        out = self.pool(c)
-        return out
+        w_out = self.pool(c)
+        a_out = AllAP(c)
+        return w_out, a_out

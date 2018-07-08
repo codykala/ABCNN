@@ -5,7 +5,7 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .pooling.allap import AllAP
+from pooling.allap import AllAP
 
 
 class Model(nn.Module):
@@ -14,7 +14,7 @@ class Model(nn.Module):
         http://www.aclweb.org/anthology/Q16-1019
     """
 
-    def __init__(self, embeddings, blocks):
+    def __init__(self, embeddings, blocks, include_all_pooling=True):
         """ Initializes the ABCNN model layers.
 
             Args:
@@ -22,13 +22,19 @@ class Model(nn.Module):
                     Contains the word embeddings.
                 blocks: list of Blocks
                     Contains Block modules defining the layers of the CNN.
-                    
+                include_all_pooling: boolean
+                    Optional, specifies whether or not to forward the outputs 
+                    of All-AP layers applied to all non-final Average Pooling 
+                    layers to form the final representation. By default, this 
+                    value is True.
+
             Returns:
                 None
         """
         super().__init__()
         self.embeddings = embeddings
         self.blocks = nn.ModuleList(blocks)
+        self.include_all_pooling = include_all_pooling
 
     def forward(self, idxs1, idxs2):
         """ Computes the forward pass over the network.
@@ -40,21 +46,24 @@ class Model(nn.Module):
                 out1, out2: torch.FloatTensors of shape (batch_size, ?) 
                     The output of the model for each pair of sequences.
         """
-        # Store the outputs of the All-AP layers for each block and for each 
-        # sequence
-        out1 = []
-        out2 = []
+        # Store the outputs of the All-AP layers for each input
+        if self.include_all_pooling:
+            outputs1 = []
+            outputs2 = []
 
         # Forward pass
         x1 = self.embeddings(idxs1)
         x2 = self.embeddings(idxs2)
         for block in self.blocks:
-            x1 = block(x1)
-            x2 = block(x2)
-            out1 += AllAP(x1)
-            out2 += AllAP(x2)
+            x1, out1 = block(x1)
+            x2, out2 = block(x2)
+            if self.include_all_pooling:
+                outputs1 += out1
+                outputs2 += out2
 
         # Concatenate the All-AP layer outputs to get final representations
-        out1 = torch.cat(out1, dim=1) 
-        out2 = torch.cat(out2, dim=1)
+        if self.include_all_pooling:
+            out1 = torch.cat(outputs1, dim=1) 
+            out2 = torch.cat(outputs2, dim=1)
+        # Otherwise, only use output of final All-AP layer as final representation
         return out1, out2
