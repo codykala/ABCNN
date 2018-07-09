@@ -27,8 +27,8 @@ metrics = {}    # TODO: Implement custom metrics functions to track
 history = defaultdict(list)
 
 # Load the data
-trainset = QuestionDataset("data/quora/train.csv", index2word, word2index)
-valset = QuestionDataset("data/quora/val.csv", index2word, word2index)
+trainset = QuestionDataset("data/quora/train.csv", word2index)
+valset = QuestionDataset("data/quora/val.csv", word2index)
 
 # Train the model
 model = train(model, loss_fn, optimizer, metrics, history, trainset, valset, config["train"])
