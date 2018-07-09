@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import datetime
 import torch
 import torchvision
 import torch.nn as nn
@@ -34,7 +35,7 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
             valset: a torch.utils.data.Dataset 
                 Contains the validation data.
             config: dict
-                Contains the following keys:
+                Configures the training loop. Contains the following keys:
 
                 batch_size: int
                     The number of examples to process per batch.
@@ -74,7 +75,8 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
 
         # Log results
         if log_every != 0 and epoch % log_every == 0:
-            save_checkpoint(model, optimizer, history, epoch)
+            filename = str(datetime.datetime.now()) # use time stamp to name file
+            save_checkpoint(model, optimizer, history, epoch, filename)
             generate_plots(history)
 
     return model
