@@ -111,7 +111,7 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, is_training)
     losses = []
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     for features, targets in dataloader:
-        
+
         # Load batch to GPU
         if USE_CUDA:
             torch.cuda.empty_cache()

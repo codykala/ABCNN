@@ -9,7 +9,6 @@ import torch.nn as nn
 from gensim.models import KeyedVectors
 from nltk.corpus import stopwords
 
-from embeddings.embeddings import create_embedding_matrix
 from model.blocks.bcnn import BCNNBlock
 from model.blocks.abcnn1 import ABCNN1Block
 from model.blocks.abcnn2 import ABCNN2Block
@@ -39,18 +38,21 @@ def read_config(config_path):
         return config
 
 
-def setup_model(datasets, config):
+def setup_model(embeddings, config):
     """ Creates a CNN model using the given configuration.
 
         Args:
-            datasets: list of pd.DataFrame
-                Each DataFrame is a dataset. Each dataset contains question 
-                pairs, and each question is represented as a string.
+            embeddings: nn.Embedding of shape (vocab_size, embeddings_size)
+                The matrix of word embeddings.
             config: dict
                 Contains the information needed to initialize the layers
                 of the Model. See config.json for configuration details.
 
-        Returns: 
+        Returns:
+            datasets: list of pd.DataFrame
+                Each DataFrame is a dataset. Each dataset contains question
+                pairs, and each question is represented as a list of indices
+                into the embedding matrix. 
             model: nn.Module
                 The instantiated model.
             word2index: dict
@@ -59,30 +61,9 @@ def setup_model(datasets, config):
                 Mapping from index in the embedding matrix to its word/token. 
                 
     """
-    # Parse the config dict
-    embed_config = config["embeddings"]
-    block_config = config["blocks"]
-
-    # Load or create embeddings
-    if embed_config["use_pretrained_embeddings"]:
-        print("Generating embeddings matrix from pretrained embeddings...")
-        datasets, embeddings, word2index, index2word = \
-            create_embedding_matrix(
-                datasets, 
-                embed_config["embeddings_size"], 
-                embeddings_path=embed_config["embeddings_path"]
-            )
-    else:
-        print("Generating new embeddings matrix...")
-        datasets, embeddings, word2index, index2word = \
-            create_embedding_matrix(
-                datasets, 
-                embed_config["embeddings_size"]
-            )
-    print("... Done.")
-
     # Create the Blocks
     blocks = []
+    block_config = config["blocks"]
     for params in block_config:
         if params["type"] == "bcnn":
             conv = Convolution(**params["conv"])
@@ -92,12 +73,8 @@ def setup_model(datasets, config):
             raise NotImplementedError
 
     # Create the model
-    model = Model(embeddings, blocks)
+    model = Model(embeddings, blocks, 
+                include_all_pooling=config["include_all_pooling"])
     if USE_CUDA:
         model = model.cuda()
-    return model, index2word, word2index
-    
-
-if __name__ == "__main__":
-    config = read_config("config.json")
-    model, index2word, word2index = setup_model(datasets, config)
+    return model
