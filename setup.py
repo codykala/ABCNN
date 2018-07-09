@@ -1,10 +1,15 @@
 # coding=utf-8
 
+import json
+import numpy as np
+import os
+import re
 import torch
 import torch.nn as nn
-import json
 from gensim.models import KeyedVectors
+from nltk.corpus import stopwords
 
+from embeddings.embeddings import create_embedding_matrix
 from model.blocks.bcnn import BCNNBlock
 from model.blocks.abcnn1 import ABCNN1Block
 from model.blocks.abcnn2 import ABCNN2Block
@@ -34,37 +39,13 @@ def read_config(config_path):
         return config
 
 
-def load_word2vec_embeddings(embeddings_path):
-    """ Loads the pre-trained word2vec word embeddings and generates
-        the mapping and inverse mapping between words/tokens and
-        their indices into the embedding matrix.
-
-        Note: The embeddings will not be updated during the learning process.
-
-        Args:
-            embeddings_path: string
-                Path to the file containing the pre-trained word embeddings.
-
-        Returns:
-            embeddings: torch.nn.Embedding of shape (vocab_size, embeds_size) 
-                Contains the pre-trained word embeddings.
-            word2index: dict
-                Mapping from a word/token to its index in the embeddiing matrix.
-            index2word: dict
-                Mapping from index in the embedding matrix to its word/token. 
-    """
-    model = KeyedVectors.load_word2vec_format(embeddings_path, binary=True)
-    weights = torch.FloatTensor(model.syn0)
-    embeddings = nn.Embedding.from_pretrained(weights) 
-    index2word = {i: k for i, k in enumerate(model.index2word)}
-    word2index = {k: i for i, k in enumerate(model.index2word)}
-    return embeddings, index2word, word2index
-
-
-def setup_model(config):
+def setup_model(datasets, config):
     """ Creates a CNN model using the given configuration.
 
         Args:
+            datasets: list of pd.DataFrame
+                Each DataFrame is a dataset. Each dataset contains question 
+                pairs, and each question is represented as a string.
             config: dict
                 Contains the information needed to initialize the layers
                 of the Model. See config.json for configuration details.
@@ -84,12 +65,21 @@ def setup_model(config):
 
     # Load or create embeddings
     if embed_config["use_pretrained_embeddings"]:
-        print("Loading pretrained embeddings...")
-        embeddings, index2word, word2index = \
-            load_word2vec_embeddings(embed_config["embeddings_path"])
-        print("... Done.")
+        print("Generating embeddings matrix from pretrained embeddings...")
+        datasets, embeddings, word2index, index2word = \
+            create_embedding_matrix(
+                datasets, 
+                embed_config["embeddings_size"], 
+                embeddings_path=embed_config["embeddings_path"]
+            )
     else:
-        raise NotImplementedError
+        print("Generating new embeddings matrix...")
+        datasets, embeddings, word2index, index2word = \
+            create_embedding_matrix(
+                datasets, 
+                embed_config["embeddings_size"]
+            )
+    print("... Done.")
 
     # Create the Blocks
     blocks = []
@@ -110,4 +100,4 @@ def setup_model(config):
 
 if __name__ == "__main__":
     config = read_config("config.json")
-    model, index2word, word2index = setup_model(config)
+    model, index2word, word2index = setup_model(datasets, config)
