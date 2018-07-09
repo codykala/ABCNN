@@ -41,6 +41,8 @@ class Model(nn.Module):
 
             Args:
                 idxs1. idxs2: list of lists of ints
+                    Each list is a list of row indices into the embedding
+                    matrix.
 
             Returns:
                 out1, out2: torch.FloatTensors of shape (batch_size, ?) 
