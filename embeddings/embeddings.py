@@ -6,11 +6,10 @@ import pandas as pd
 import re
 import torch
 import torch.nn as nn
+from torch.utils.data import TensorDataset
 from gensim.models import KeyedVectors
 from nltk.corpus import stopwords
 from tqdm import tqdm
-
-from data.dataset import QuestionDataset
 
 def create_embedding_matrix(embeddings_size, word2index, word2vec):
     """ Creates the embedding matrix. 
@@ -55,7 +54,7 @@ def create_embedding_matrix(embeddings_size, word2index, word2vec):
     return embeddings
 
 
-def convert_words_to_indices(datapaths, embeddings_path, max_length):
+def load_datasets(datapaths, embeddings_path, max_length):
     """ Converts questions, which are represented as strings, to lists of
         indices into the embedding matrix. Additional, builds mappings from
         words to indices and vice versa.
@@ -111,18 +110,15 @@ def convert_words_to_indices(datapaths, embeddings_path, max_length):
     questions_cols = ['question1', 'question2']
     for name, dataset in datasets.items():
         num_examples = len(dataset)
-        # q2n -> question numbers representation
         q2n_rep = np.zeros((num_examples, 2, max_length)) 
         labels = np.array(dataset["is_duplicate"], dtype=int)
-        print("Processing dataset: {}".format(name))
-        print(q2n_rep.shape, labels.shape)
         with tqdm(total=num_examples) as pbar:
             for index, row in dataset.iterrows():
 
                 # Iterate through the text of both questions of the row
                 for i, question in enumerate(questions_cols):
 
-                    q2n = []  
+                    q2n = []  # q2n -> question numbers representation
                     for word in text_to_word_list(row[question]):
 
                         # Check for unwanted words
@@ -150,7 +146,9 @@ def convert_words_to_indices(datapaths, embeddings_path, max_length):
                 pbar.update(1)
         
         # Convert to LongTensors
-        datasets[name] = QuestionDataset(q2n_rep, labels)
+        q2n_rep = torch.LongTensor(q2n_rep) # need to be ints to index into embeddings matrix
+        labels = torch.FloatTensor(labels) # need to be floats for loss computation
+        datasets[name] = TensorDataset(q2n_rep, labels)
 
     return datasets, word2index, word2vec
 

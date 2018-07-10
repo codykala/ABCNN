@@ -51,13 +51,13 @@ def generate_plots(history):
     """ Creates plots of the metric values stored in history.
     
         Args:
-            history: dict
+            history: defaultdict
                 Contains histories of desired run metrics.
 
         Returns:
             None
     """
-    for metric, vals in history.iteritems():
+    for metric, vals in history.items():
        time = np.arange(1, len(vals) + 1)
        plt.scatter(time, vals, marker='x', color='red')
        plt.xlabel("time")

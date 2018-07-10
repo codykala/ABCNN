@@ -1,13 +1,9 @@
 # coding=utf-8
 
 import json
-import numpy as np
 import os
-import re
 import torch
 import torch.nn as nn
-from gensim.models import KeyedVectors
-from nltk.corpus import stopwords
 
 from model.blocks.bcnn import BCNNBlock
 from model.blocks.abcnn1 import ABCNN1Block
@@ -49,16 +45,8 @@ def setup_model(embeddings, config):
                 of the Model. See config.json for configuration details.
 
         Returns:
-            datasets: list of pd.DataFrame
-                Each DataFrame is a dataset. Each dataset contains question
-                pairs, and each question is represented as a list of indices
-                into the embedding matrix. 
             model: nn.Module
                 The instantiated model.
-            word2index: dict
-                Mapping from a word/token to its index in the embeddiing matrix.
-            index2word: dict
-                Mapping from index in the embedding matrix to its word/token. 
                 
     """
     # Create the Blocks
@@ -74,7 +62,17 @@ def setup_model(embeddings, config):
 
     # Create the model
     model = Model(embeddings, blocks, 
-                include_all_pooling=config["include_all_pooling"])
+                include_all_pooling=config["include_all_pooling"]).float()
     if USE_CUDA:
         model = model.cuda()
+    model.apply(weights_init)
     return model
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find("Conv2d") != -1:
+        nn.init.xavier_uniform_(m.weight)
+    elif classname.find("Linear") != -1:
+        nn.init.xavier_uniform_(m.weight)
+        nn.init.constant_(m.bias, 0.1)

@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import datetime
+import os
 import torch
 import torchvision
 import torch.nn as nn
@@ -10,6 +11,8 @@ from tqdm import tqdm
 
 from utils import save_checkpoint
 from utils import generate_plots
+
+
 
 # Use GPU if available, otherwise use CPU.
 USE_CUDA = torch.cuda.is_available()
@@ -50,6 +53,9 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
                     How often to save model checkpoints and generate
                     plots. To turn off logging, set this value to 0.
                     Default value is 5.
+                num_workers: int
+                    How many works to assign to the DataLoader.
+                    Default value is 4.
 
         Returns:
             model: a torch.nn.Module defining the trained model.
@@ -60,13 +66,15 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
     start_epoch = config.get("start_epoch", 1)
     num_epochs = config.get("num_epochs", 20)
     log_every = config.get("save_every", 5)
+    num_workers = config.get("num_workers", 4)
+    checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
 
     # Training loop
-    for epoch in range(start_epoch, num_epochs + 1):
+    for epoch in tqdm(range(start_epoch, num_epochs + 1), desc="Epochs", position=0):
 
         # Process train and val datasets
-        model, train_loss = process_batches(model, loss_fn, optimizer, trainset, batch_size, True)
-        val_loss = process_batches(model, loss_fn, optimizer, valset, batch_size, False)
+        model, train_loss = process_batches(model, loss_fn, optimizer, trainset, batch_size, num_workers, True)
+        val_loss = process_batches(model, loss_fn, optimizer, valset, batch_size, num_workers, False)
 
         # Update run statistics
         # TODO: Add tracking for other statistics
@@ -76,13 +84,14 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
         # Log results
         if log_every != 0 and epoch % log_every == 0:
             filename = str(datetime.datetime.now()) # use time stamp to name file
+            filename = os.path.join(checkpoint_dir, filename)
             save_checkpoint(model, optimizer, history, epoch, filename)
             generate_plots(history)
 
     return model
 
 
-def process_batches(model, loss_fn, optimizer, dataset, batch_size, is_training):
+def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers, is_training):
     """ Processes the examples in the dataset in batches. If the dataset is the
         training set, then the model weights will be updated.
 
@@ -98,6 +107,8 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, is_training)
                 Contains the examples to process.
             batch_size: int
                 The number of examples to process per batch.
+            num_workers: int
+                How many workers to assign to the DataLoader.
             is_training: boolean
                 Specifies whether or not to update model weights.
 
@@ -108,28 +119,29 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, is_training)
                 The loss averaged across the entire dataset.
     """
     # Store batch losses
-    losses = []
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    for features, targets in dataloader:
+    total_loss = 0
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    for features, targets in tqdm(dataloader, position=1):
 
         # Load batch to GPU
         if USE_CUDA:
             torch.cuda.empty_cache()
             features = features.cuda()
+            targets = targets.cuda()
 
         # Forward pass
         scores = model(features)
         batch_loss = torch.sum(loss_fn(scores, targets))
-        losses.append(batch_loss)
+        total_loss += float(batch_loss)
 
         # Backward pass
         if is_training:
             optimizer.zero_grad()
             batch_loss.backward()
-            optimizer.step()
+            optimizer.step()     
 
     # Compute averaged loss
-    loss = sum(losses) / len(dataset)   
+    loss = total_loss / len(dataset)   
     if is_training:
         return model, loss
     else:
