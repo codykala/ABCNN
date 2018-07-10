@@ -1,4 +1,4 @@
 *.pyo
 *.pyc
 data/
-embeddings/
+embeddings/GoogleNews-vectors-negative300.bin.gz 
