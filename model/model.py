@@ -5,7 +5,7 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 
-from pooling.allap import AllAP
+from model.pooling.allap import AllAP
 
 
 class Model(nn.Module):
@@ -36,13 +36,13 @@ class Model(nn.Module):
         self.blocks = nn.ModuleList(blocks)
         self.include_all_pooling = include_all_pooling
 
-    def forward(self, idxs1, idxs2):
+    def forward(self, idxs):
         """ Computes the forward pass over the network.
 
             Args:
-                idxs1. idxs2: list of lists of ints
-                    Each list is a list of row indices into the embedding
-                    matrix.
+                idxs: np.array of shape (2, max_length)
+                    Contains the index representations for a pair of
+                    sequences.
 
             Returns:
                 out1, out2: torch.FloatTensors of shape (batch_size, ?) 
@@ -54,8 +54,8 @@ class Model(nn.Module):
             outputs2 = []
 
         # Forward pass
-        x1 = self.embeddings(idxs1)
-        x2 = self.embeddings(idxs2)
+        x1 = self.embeddings(idxs[0])
+        x2 = self.embeddings(idxs[1])
         for block in self.blocks:
             x1, out1 = block(x1)
             x2, out2 = block(x2)

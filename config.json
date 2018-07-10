@@ -1,8 +1,13 @@
 {
+    "datapaths": {
+        "train": "data/quora/train.csv",
+        "val": "data/quora/val.csv",
+        "test": "data/quora/test.csv"
+    },
     "embeddings": {
         "use_pretrained_embeddings": true,
         "embeddings_path": "embeddings/GoogleNews-vectors-negative300.bin.gz",
-        "embedding_dim": 300
+        "embeddings_size": 300
     },
     "blocks": [
         {  
@@ -35,5 +40,7 @@
         "start_epoch": 1,
         "num_epochs": 20,
         "log_every": 0
-    }
+    },
+    "include_all_pooling": true,
+    "max_length": 20
 }
