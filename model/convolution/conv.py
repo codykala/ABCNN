@@ -9,26 +9,29 @@ class Convolution(nn.Module):
 
         http://www.aclweb.org/anthology/Q16-1019
     """
-    def __init__(self, in_channels, out_channels, width, height):
+    def __init__(self, input_size, output_size, width):
         """ Initializes the convolution layer.
 
             Args:
-                in_channels: int
-                    The number of input channels.
-                out_channels: int
-                    The number of output channels. This is equal to the number
-                    of convolution filters.
+                input_size: int
+                    The dimension of the input features.
+                output_size: int
+                    The dimension of the output features.
                 width: int
                     The width of the convolution filters.
-                height: int
-                    The height of the convolution filters.
-            
+
             Returns:
                 None
         """
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, (height, width), 
-                                stride=1, padding=(height - 1, 0))
+        self.conv = \
+            nn.Conv2d(
+                1, 
+                output_size, 
+                kernel_size=(width, input_size), 
+                stride=1, 
+                padding=(width - 1, 0)
+            )
 
     def forward(self, x):
         """ Computes the forward pass over the convolution layer.

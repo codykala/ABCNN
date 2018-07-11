@@ -1,51 +1,50 @@
 {
-    "datapaths": {
+    "data_paths": {
         "train": "data/quora/train.csv",
         "val": "data/quora/val.csv",
         "test": "data/quora/test.csv"
     },
     "embeddings": {
-        "use_pretrained_embeddings": true,
         "embeddings_path": "embeddings/GoogleNews-vectors-negative300.bin.gz",
         "embeddings_size": 300
     },
     "optim": {
-        "lr": 0.5,
-        "weight_decay": 0.0004
+        "lr": 0.1,
+        "weight_decay": 0.004
     },
-    "blocks": [
-        {  
-            "type": "bcnn",
-            "conv": {
-                "in_channels": 1,
-                "out_channels": 100,
-                "width": 300,
-                "height": 4
+    "model": {
+        "max_length": 20,
+        "use_all_layers": true,
+        "blocks": [
+            {  
+                "type": "bcnn",
+                "conv_params": {
+                    "input_size": 300,
+                    "output_size": 100,
+                    "width": 4
+                },
+                "pool_params": {
+                    "width": 4
+                }
             },
-            "pool": {
-                "width": 4
+            {
+                "type": "bcnn",
+                "conv_params": {
+                    "input_size": 100,
+                    "output_size": 100,
+                    "width": 4
+                },
+                "pool_params": {
+                    "width": 4
+                }
             }
-        },
-        {
-            "type": "bcnn",
-            "conv": {
-                "in_channels": 1,
-                "out_channels": 100,
-                "width": 100,
-                "height": 4
-            },
-            "pool": {
-                "width": 4
-            }
-        }
-    ],
+        ]
+    },
     "train": {
         "batch_size": 128,
         "start_epoch": 1,
         "num_epochs": 30,
         "log_every": 5,
         "num_workers": 16
-    },
-    "include_all_pooling": true,
-    "max_length": 20
+    }
 }

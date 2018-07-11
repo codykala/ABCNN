@@ -12,7 +12,7 @@ class Model(nn.Module):
         http://www.aclweb.org/anthology/Q16-1019
     """
 
-    def __init__(self, embeddings, blocks, include_all_pooling=True):
+    def __init__(self, embeddings, blocks, use_all_layers, final_size):
         """ Initializes the ABCNN model layers.
 
             Args:
@@ -21,10 +21,11 @@ class Model(nn.Module):
                 blocks: list of Blocks Module
                     Contains Block modules defining the layers of the CNN.
                 include_all_pooling: boolean
-                    Optional, specifies whether or not to forward the outputs 
+                    Specifies whether or not to forward the outputs 
                     of All-AP layers applied to all non-final Average Pooling 
-                    layers to form the final representation. By default, this 
-                    value is True.
+                    layers to form the final representation.
+                final_size: int
+                    The number of nodes in the output layer.
 
             Returns:
                 None
@@ -32,16 +33,11 @@ class Model(nn.Module):
         super().__init__()
         self.embeddings = embeddings
         self.blocks = nn.ModuleList(blocks)
-        self.include_all_pooling = include_all_pooling
-
-        self.num_blocks = len(blocks)
+        self.use_all_layers = use_all_layers
+        self.fc = nn.Linear(2 * final_size, 2)  
         self.similarity = nn.CosineSimilarity(dim=1)
         self.ap = AllAP() 
         
-        if include_all_pooling:
-            self.fc = nn.Linear(self.num_blocks + 1, 1)
-        
-
     def forward(self, idxs):
         """ Computes the forward pass over the network.
 
@@ -54,17 +50,18 @@ class Model(nn.Module):
                 out1, out2: torch.FloatTensors of shape (batch_size, 1) 
                     The output of the model for each pair of sequences.
         """
-        # Store the outputs of the All-AP layers for each input
-        scores = []
+        # Collect all-ap outputs for each sequence
+        outputs1 = []
+        outputs2 = []
 
         # Forward pass
         x1 = self.embeddings(idxs[:, 0]).unsqueeze(1)  # shape (batch_size, 1, max_length, embedding_size)
         x2 = self.embeddings(idxs[:, 1]).unsqueeze(1)  
 
-        # Scores for input layer
+        # Store all-ap outputs for embedding layer
         a1, a2 = self.ap(x1), self.ap(x2) # shapes (batch_size, embedding_size)
-        sim = self.similarity(a1, a2).unsqueeze(1) # shape (batch_size, 1)
-        scores.append(sim)
+        outputs1.append(a1)
+        outputs2.append(a2)
 
         for block in self.blocks:
 
@@ -72,16 +69,15 @@ class Model(nn.Module):
             x1, a1 = block(x1) # shapes (batch_size, 1, max_length, height), (batch_size, height)
             x2, a2 = block(x2) 
 
-            # Compute score for current layer
-            sim = self.similarity(a1, a2).unsqueeze(1) # shape (batch_size, 1)
-            scores.append(sim) 
+            # Store all-ap outputs for current layer
+            outputs1.append(a1)
+            outputs2.append(a2)
 
-        # Return weighted sum of scores across all layers
-        if self.include_all_pooling:
-            scores = torch.cat(scores, dim=1) # shape (batch_size, num_blocks + 1)
-            output = self.fc(scores).squeeze() # shape (batch_size,)
-            return output
+        # Get final layer representation
+        if self.use_all_layers:
+            outputs = torch.cat(outputs1 + outputs2, dim=1)
+        else:
+            outputs = torch.cat([outputs1[-1], outputs2[-1]], dim=1)        
 
-        # Return scores from final layer only
-        output = scores[-1].squeeze() # shape (batch_size,)
-        return output
+        logits = self.fc(outputs) # shape (batch_size, 2)
+        return logits

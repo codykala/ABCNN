@@ -6,6 +6,10 @@ import torch
 import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
+from itertools import chain
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import f1_score
+from sklearn.metrics import classification_report
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -17,8 +21,7 @@ from utils import generate_plots
 # Use GPU if available, otherwise use CPU.
 USE_CUDA = torch.cuda.is_available()
 
-def train(model, loss_fn, optimizer, metrics, history, trainset, valset, 
-            config):
+def train(model, loss_fn, optimizer, history, trainset, valset, config):
     """ Trains the model by optimizing with respect to the given loss
         function using the given optimizer.
 
@@ -29,8 +32,6 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
                 Defines the loss function.
             optimizer: torch.optim.optimizer 
                 Defines the optimizer.
-            metrics: dict
-                Contains callable functions for each metric.
             history: dict
                 Contains histories of desired run metrics.
             trainset: torch.utils.data.Dataset 
@@ -73,25 +74,31 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
     for epoch in tqdm(range(start_epoch, num_epochs + 1), desc="Epochs", position=0):
 
         # Process train and val datasets
-        model, train_loss = process_batches(model, loss_fn, optimizer, trainset, batch_size, num_workers, True)
-        val_loss = process_batches(model, loss_fn, optimizer, valset, batch_size, num_workers, False)
+        model, train_results, train_report = \
+            process_batches(model, loss_fn, optimizer, trainset, batch_size, 
+                            num_workers, True)
+        tqdm.write(train_report)
+        val_results, val_report \
+            = process_batches(model, loss_fn, optimizer, valset, batch_size, 
+                            num_workers, False)
+        tqdm.write(val_report)
 
         # Update run statistics
-        # TODO: Add tracking for other statistics
-        history["train loss"].append(train_loss)
-        history["val loss"].append(val_loss)
+        for name, val in chain(train_results.items(), val_results.items()):
+            history[name].append(val)
 
         # Log results
         if log_every != 0 and epoch % log_every == 0:
             filename = str(datetime.datetime.now()) # use time stamp to name file
             filename = os.path.join(checkpoint_dir, filename)
             save_checkpoint(model, optimizer, history, epoch, filename)
-            generate_plots(history)
+            generate_plots(history, checkpoint_dir)
 
     return model
 
 
-def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers, is_training):
+def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers, 
+                        is_training):
     """ Processes the examples in the dataset in batches. If the dataset is the
         training set, then the model weights will be updated.
 
@@ -120,7 +127,15 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
     """
     # Store batch losses
     total_loss = 0
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+
+    # Track number of correct and incorrect predictions
+    actual = []
+    predicted = []
+
+    # Process batches
+    dataloader = \
+        DataLoader(dataset, batch_size=batch_size, shuffle=True, 
+                    num_workers=num_workers)
     for features, targets in tqdm(dataloader, position=1):
 
         # Load batch to GPU
@@ -131,6 +146,13 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
 
         # Forward pass
         scores = model(features)
+        predictions = torch.round(scores).int()
+
+        # Store actual and predicted labels
+        actual.extend(targets.cpu().tolist())
+        predicted.extend(predictions.cpu().tolist())
+
+        # Update loss
         batch_loss = torch.sum(loss_fn(scores, targets))
         total_loss += float(batch_loss)
 
@@ -140,9 +162,31 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
             batch_loss.backward()
             optimizer.step()     
 
-    # Compute averaged loss
-    loss = total_loss / len(dataset)   
+    # Compute evaluation metrics
+    loss = total_loss / len(dataset)  
+    accuracy = accuracy_score(actual, predicted)
+    f1 = f1_score(actual, predicted, average="macro")
+
+    # Generate classification report
+    report = \
+        classification_report(
+            actual, predicted, 
+            labels=[0, 1],
+            target_names=["not similar", "similar"]
+        )
+
+    # Store the results
     if is_training:
-        return model, loss
+        results = {
+            "train_loss": loss,
+            "train_acc": accuracy,
+            "train_f1": f1,
+        }
+        return model, results, report
     else:
-        return loss
+        results = {
+            "val_loss": loss,
+            "val_acc": accuracy,
+            "val_f1": f1
+        }
+        return results, report

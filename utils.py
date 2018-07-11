@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -47,12 +48,14 @@ def load_checkpoint(filename):
     return state
     
 
-def generate_plots(history):
+def generate_plots(history, checkpoint_dir):
     """ Creates plots of the metric values stored in history.
     
         Args:
             history: defaultdict
                 Contains histories of desired run metrics.
+            checkpoint_dir: string
+                Where to save the plots
 
         Returns:
             None
@@ -63,5 +66,7 @@ def generate_plots(history):
        plt.xlabel("time")
        plt.ylabel(metric)
        plt.title("{} vs time".format(metric))
-       plt.savefig("{}_epoch_{}.png".format(metric, len(vals)))
+       plot_name = "{}_epoch_{}.png".format(metric, len(vals))
+       plot_name = os.path.join(checkpoint_dir, plot_name)
+       plt.savefig(plot_name)
        plt.clf() 
