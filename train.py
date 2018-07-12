@@ -1,21 +1,19 @@
 # coding=utf-8
 
-import datetime
+import numpy as np
 import os
 import torch
-import torchvision
-import torch.nn as nn
-import torch.nn.functional as F
 from itertools import chain
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
-from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from utils import save_checkpoint
 from utils import generate_plots
-
 
 
 # Use GPU if available, otherwise use CPU.
@@ -36,7 +34,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
                 Contains histories of desired run metrics.
             trainset: torch.utils.data.Dataset 
                 Contains the training data.
-            valset: a torch.utils.data.Dataset 
+            valset: torch.utils.data.Dataset 
                 Contains the validation data.
             config: dict
                 Configures the training loop. Contains the following keys:
@@ -70,28 +68,54 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     num_workers = config.get("num_workers", 4)
     checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
 
+    # Use the f1 score to determine best checkpoint
+    best_val_f1 = 0 
+
     # Training loop
     for epoch in tqdm(range(start_epoch, num_epochs + 1), desc="Epochs", position=0):
 
-        # Process train and val datasets
-        model, train_results, train_report = \
+        # Process training dataset
+        model, train_results, train_cm = \
             process_batches(model, loss_fn, optimizer, trainset, batch_size, 
                             num_workers, True)
-        tqdm.write(train_report)
-        val_results, val_report \
+        tqdm.write(np.array_str(train_cm) + "\n" +
+            "Accuracy:{}, Precision: {}, Recall: {}, F1: {}".format(
+                train_results["train_accuracy"],
+                train_results["train_precision"],
+                train_results["train_recall"],
+                train_results["train_f1"]
+            )
+        )
+    
+        # Process validation dataset
+        val_results, val_cm \
             = process_batches(model, loss_fn, optimizer, valset, batch_size, 
                             num_workers, False)
-        tqdm.write(val_report)
+        tqdm.write(np.array_str(val_cm) + "\n" +
+            "Accuracy:{}, Precision: {}, Recall: {}, F1: {}".format(
+                val_results["val_accuracy"],
+                val_results["val_precision"],
+                val_results["val_recall"],
+                val_results["val_f1"]
+            )
+        )
 
-        # Update run statistics
+        # Update run history
         for name, val in chain(train_results.items(), val_results.items()):
             history[name].append(val)
 
-        # Log results
+        # Update best checkpoint
+        if val_results["val_f1"] > best_val_f1:
+            tqdm.write("New best checkpoint!")
+            best_val_f1 = val_results["val_f1"]
+            filepath = os.path.join(checkpoint_dir, "best_checkpoint")
+            save_checkpoint(model, optimizer, history, epoch, filepath)
+
+        # Generate plots and save checkpoint
         if log_every != 0 and epoch % log_every == 0:
-            filename = str(datetime.datetime.now()) # use time stamp to name file
-            filename = os.path.join(checkpoint_dir, filename)
-            save_checkpoint(model, optimizer, history, epoch, filename)
+            filename = "checkpoint_epoch_{}".format(epoch)
+            filepath = os.path.join(checkpoint_dir, filename)
+            save_checkpoint(model, optimizer, history, epoch, filepath)
             generate_plots(history, checkpoint_dir)
 
     return model
@@ -121,11 +145,13 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
 
         Returns:
             model: torch.nn.Module
-                The updated model (returned only if is_training is True)
-            loss: float
-                The loss averaged across the entire dataset.
+                The updated model. Returned only if is_training is True.
+            results: dict
+                Contains relevant evaluation metrics for the model.
+            cm: np.array
+                The confusion matrix for the model on the dataset.
     """
-    # Store batch losses
+    # Track loss across all batches
     total_loss = 0
 
     # Track number of correct and incorrect predictions
@@ -146,7 +172,7 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
 
         # Forward pass
         scores = model(features)
-        predictions = torch.round(scores).int()
+        predictions = torch.argmax(scores, dim=1)
 
         # Store actual and predicted labels
         actual.extend(targets.cpu().tolist())
@@ -163,30 +189,31 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
             optimizer.step()     
 
     # Compute evaluation metrics
-    loss = total_loss / len(dataset)  
-    accuracy = accuracy_score(actual, predicted)
+    loss = total_loss / len(dataset)
+    accuracy = accuracy_score(actual, predicted)  
+    precision = precision_score(actual, predicted, average="macro")
+    recall = recall_score(actual, predicted, average="macro")
     f1 = f1_score(actual, predicted, average="macro")
 
-    # Generate classification report
-    report = \
-        classification_report(
-            actual, predicted, 
-            labels=[0, 1],
-            target_names=["not similar", "similar"]
-        )
+    # Generate confusion matrix
+    cm = confusion_matrix(actual, predicted, labels=[0, 1])
 
     # Store the results
     if is_training:
         results = {
             "train_loss": loss,
-            "train_acc": accuracy,
+            "train_accuracy": accuracy,
+            "train_precision": precision,
+            "train_recall": recall,
             "train_f1": f1,
         }
-        return model, results, report
+        return model, results, cm
     else:
         results = {
             "val_loss": loss,
-            "val_acc": accuracy,
+            "val_accuracy": accuracy,
+            "val_precision": precision,
+            "val_recall": recall,
             "val_f1": f1
         }
-        return results, report
+        return results, cm

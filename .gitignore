@@ -2,3 +2,5 @@
 *.pyc
 data/
 embeddings/GoogleNews-vectors-negative300.bin.gz 
+gpu0/
+gpu1/

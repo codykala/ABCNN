@@ -13,15 +13,19 @@ class ABCNN2Block(nn.Module):
         super.__init__()
         pass
 
-    def forward(self, in1, in2):
-        """ Computes the forward pass over the ABCNN-2 Block.
+    def forward(self, x1, x2):
+        """ Computes the forward pass over the ABCNN-1 Block.
 
             Args:
-                in1, in2: torch.Tensor
-                    The inputs to the ABCNN-2 Block.
+                x1, x2: torch.FloatTensors of shape (batch_size, 1, max_length, input_size)
+                    The inputs to the ABCNN-1 Block.
 
             Returns:
-                out1, out2: torch.Tensor
-                    The outputs of the ABCNN-2 Block.
+                w1, w2: torch.FloatTensors of shape (batch_size, 1, max_length, output_size)
+                    The outputs of the all-ap Average Pooling layer. These are
+                    passed to the next Block.
+                a1, a2: torch.FloatTensors of shape (batch_size, output_size)
+                    The outputs of the all-ap Average Pooling layer. These are
+                    optionally passed to the output layer.
         """
         pass

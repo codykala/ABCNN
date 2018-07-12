@@ -9,7 +9,7 @@ class Convolution(nn.Module):
 
         http://www.aclweb.org/anthology/Q16-1019
     """
-    def __init__(self, input_size, output_size, width):
+    def __init__(self, input_size, output_size, width, in_channels):
         """ Initializes the convolution layer.
 
             Args:
@@ -19,6 +19,8 @@ class Convolution(nn.Module):
                     The dimension of the output features.
                 width: int
                     The width of the convolution filters.
+                in_channels: int
+                    The number of input channels to the convolution layer.
 
             Returns:
                 None
@@ -26,7 +28,7 @@ class Convolution(nn.Module):
         super().__init__()
         self.conv = \
             nn.Conv2d(
-                1, 
+                in_channels, 
                 output_size, 
                 kernel_size=(width, input_size), 
                 stride=1, 

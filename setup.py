@@ -7,6 +7,7 @@ import torch.nn as nn
 
 from data.datasets import load_datasets
 from embeddings.embeddings import create_embedding_matrix
+from model.attention.abcnn1 import ABCNN1Attention
 from model.blocks.bcnn import BCNNBlock
 from model.blocks.abcnn1 import ABCNN1Block
 from model.blocks.abcnn2 import ABCNN2Block
@@ -62,24 +63,44 @@ def setup_datasets_and_model(config):
     embeddings = \
         create_embedding_matrix(embeddings_size, word2index, word2vec)    
     
+    # Store output sizes for each Block
+    # (needed for final layer initialization)
+    output_sizes = [embeddings_size]  
+
     # Create the Blocks
     blocks = []
-    output_sizes = [embeddings_size]
     for block in config["model"]["blocks"]:
 
+        # Parameters common to all Blocks
+        input_size = block["input_size"]
+        output_size = block["output_size"]
+        width = block["width"]
+
         if block["type"] == "bcnn":
-            
-            conv = Convolution(**block["conv_params"])
-            pool = WidthAP(**block["pool_params"])
+
+            # Build the Block
+            conv = Convolution(input_size, output_size, width, 1)
+            pool = WidthAP(width)
             blocks.append(BCNNBlock(conv, pool))
-            
-            output_size = block["conv_params"]["output_size"]
+            output_sizes.append(output_size)
+        
+        elif block["type"] == "abcnn1":
+
+            # Parameters specific to ABCNN-1 Block
+            match_score = block["match_score"]
+            share_weights = block["share_weights"]
+
+            # Build the Block
+            attn = ABCNN1Attention(input_size, max_length, share_weights, match_score)
+            conv = Convolution(input_size, output_size, width, 2)
+            pool = WidthAP(width)
+            blocks.append(ABCNN1Block(attn, conv, pool))
             output_sizes.append(output_size)
         
         else:
             raise NotImplementedError
 
-    # Compute size of output layer
+    # Compute size of final output layer
     use_all_layers = config["model"]["use_all_layers"]
     final_size = sum(output_sizes) if use_all_layers else output_sizes[-1]
 
@@ -89,6 +110,7 @@ def setup_datasets_and_model(config):
     model.apply(weights_init)
     return datasets, model
 
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find("Conv2d") != -1:
@@ -97,3 +119,6 @@ def weights_init(m):
     elif classname.find("Linear") != -1:
         nn.init.xavier_normal_(m.weight)
         nn.init.constant_(m.bias, 0.1)
+    elif classname.find("ABCNN1Attention") != -1:
+        nn.init.xavier_normal_(m.W1)
+        nn.init.xavier_normal_(m.W2)

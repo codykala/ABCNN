@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend("agg")  
 
-def save_checkpoint(model, optimizer, history, epoch, filename):
+def save_checkpoint(model, optimizer, history, epoch, filepath):
     """ Saves the state of the model to a pickle file so that it can continue 
         to be trained at a later time.
 
@@ -19,12 +19,14 @@ def save_checkpoint(model, optimizer, history, epoch, filename):
                 Contains histories of desired run metrics.
             epoch: int
                 The current epoch number.
+            filepath
+                The path where the checkpoint file will be saved.
         
         Returns:
             None
     """
     state = (model.state_dict(), optimizer.state_dict(), history, epoch)
-    torch.save(state, filename)
+    torch.save(state, filepath)
 
 
 def load_checkpoint(filename):

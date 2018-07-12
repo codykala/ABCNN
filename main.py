@@ -1,6 +1,5 @@
 # coding=utf-8
 
-import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,11 +8,6 @@ from collections import defaultdict
 from setup import read_config
 from setup import setup_datasets_and_model
 from train import train
-
-# Get command line arguments
-parser = argparse.ArgumentParser()
-parser.add_argument("--dir", help="path to save checkpoints and plots")
-args = parser.parse_args()
 
 # Get configurations
 config = read_config("config.json")

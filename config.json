@@ -9,42 +9,37 @@
         "embeddings_size": 300
     },
     "optim": {
-        "lr": 0.1,
-        "weight_decay": 0.004
+        "lr": 0.085,
+        "weight_decay": 0.0002
     },
     "model": {
         "max_length": 20,
         "use_all_layers": true,
         "blocks": [
             {  
-                "type": "bcnn",
-                "conv_params": {
-                    "input_size": 300,
-                    "output_size": 100,
-                    "width": 4
-                },
-                "pool_params": {
-                    "width": 4
-                }
+                "type": "abcnn1",
+                "input_size": 300,
+                "output_size": 50,
+                "width": 3,
+                "match_score": "euclidean",
+                "share_weights": true
             },
             {
-                "type": "bcnn",
-                "conv_params": {
-                    "input_size": 100,
-                    "output_size": 100,
-                    "width": 4
-                },
-                "pool_params": {
-                    "width": 4
-                }
+                "type": "abcnn1",
+                "input_size": 50,
+                "output_size": 50,
+                "width": 3,
+                "match_score": "euclidean",
+                "share_weights": true
             }
         ]
     },
     "train": {
-        "batch_size": 128,
+        "batch_size": 2048,
         "start_epoch": 1,
         "num_epochs": 30,
         "log_every": 5,
-        "num_workers": 16
+        "num_workers": 16,
+        "checkpoint_dir": "gpu0"
     }
 }

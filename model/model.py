@@ -66,8 +66,7 @@ class Model(nn.Module):
         for block in self.blocks:
 
             # Compute input to next layer
-            x1, a1 = block(x1) # shapes (batch_size, 1, max_length, height), (batch_size, height)
-            x2, a2 = block(x2) 
+            x1, x2, a1, a2 = block(x1, x2)
 
             # Store all-ap outputs for current layer
             outputs1.append(a1)

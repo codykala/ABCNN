@@ -28,21 +28,22 @@ class BCNNBlock(nn.Module):
         self.pool = pool
         self.ap = AllAP()
 
-    def forward(self, x):
-        """ Computes the forward pass over the BCNN Block.
-
+    def forward(self, x1, x2):
+        """ Computes the forward pass over the BCNN Block.abs
+            
             Args:
-                x: torch.FloatTensor of shape (batch_size, 1, max_length, height)
-                    The input to the BCNN Block.
+                x1, x2: torch.FloatTensors of shape (batch_size, 1, max_length, input_size)
+                    The inputs to the BCNN Block.
 
             Returns:
-                w_out: torch.FloatTensor of shape (batch_size, 1, max_length, out_channels)
-                    This output is passed to the next Block in the Model.
-                a_out: torch.FloatTensor of shape (batch_size, height)
-                    This output is used to form the final representation returned
-                    by the model.
+                w1, w2: torch.FloatTensors of shape (batch_size, 1, max_length, output_size)
+                    The outputs of the w-ap Average Pooling layer. These are passed to
+                    the next Block.
+                a1, a2: torch.FloatTensors of shape (batch_size, output_size)
+                    The outputs of the all-ap Average Pooling layer. These are optionally
+                    passed to the output layer.
         """
-        c = self.conv(x) # shape (batch_size, 1, max_length + width - 1, out_channels)
-        w_out = self.pool(c) # shape (batch_size, 1, max_length, out_channel)
-        a_out = self.ap(c) # shape (batch_size, out_channels)
-        return w_out, a_out
+        c1, c2 = self.conv(x1), self.conv(x2)
+        w1, w2 = self.pool(c1), self.pool(c2)
+        a1, a2 = self.ap(c1), self.ap(c2)
+        return w1, w2, a1, a2
