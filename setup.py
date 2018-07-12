@@ -8,6 +8,7 @@ import torch.nn as nn
 from data.datasets import load_datasets
 from embeddings.embeddings import create_embedding_matrix
 from model.attention.abcnn1 import ABCNN1Attention
+from model.attention.abcnn2 import ABCNN2Attention
 from model.blocks.bcnn import BCNNBlock
 from model.blocks.abcnn1 import ABCNN1Block
 from model.blocks.abcnn2 import ABCNN2Block

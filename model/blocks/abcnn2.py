@@ -12,7 +12,7 @@ class ABCNN2Block(nn.Module):
     """
     
     def __init__(self, conv, attn):
-        super.__init__()
+        super().__init__()
         self.conv = conv
         self.attn = attn
         self.ap = AllAP()
@@ -33,6 +33,6 @@ class ABCNN2Block(nn.Module):
                     optionally passed to the output layer.
         """
         c1, c2 = self.conv(x1), self.conv(x2)
-        w1, w2 = self.attn(c1), self.attn(c2)
+        w1, w2 = self.attn(c1, c2)
         a1, a2 = self.ap(c1), self.ap(c2)
         return w1, w2, a1, a2
