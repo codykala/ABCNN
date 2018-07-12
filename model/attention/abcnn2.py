@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import torch
+import torch.nn as nn
 
 from model.attention.utils import compute_attention_matrix
 from model.attention.utils import cosine
