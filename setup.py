@@ -97,6 +97,30 @@ def setup_datasets_and_model(config):
             blocks.append(ABCNN1Block(attn, conv, pool))
             output_sizes.append(output_size)
         
+        elif block["type"] == "abcnn2":
+
+            # Parameters specific to ABCNN-2 Block
+            match_score = block["match_score"]
+
+            # Build the block
+            conv = Convolution(input_size, output_size, width, 1)
+            attn = ABCNN2Attention(max_length, width, match_score)
+            blocks.append(ABCNN2Block(conv, attn))
+            output_sizes.append(output_size)
+
+        elif block["type"] == "abcnn3":
+
+            # Parameters specific to ABCNN-3 Block
+            match_score = block["match_score"]
+            share_weights = block["share_weights"]
+
+            # Build the Block
+            attn1 = ABCNN1Attention(input_size, max_length, share_weights, match_score)
+            conv = Convolution(input_size, output_size, width, 2)
+            attn2 = ABCNN2Attention(max_length, width, match_score)
+            blocks.append(ABCNN3Block(attn1, conv, attn2))
+            output_sizes.append(output_size)
+
         else:
             raise NotImplementedError
 
