@@ -9,18 +9,43 @@ class ABCNN3Block(nn.Module):
         http://www.aclweb.org/anthology/Q16-1019
     """
     
-    def __init__(self):
-        super().__init__()
+    def __init__(self, attn1, conv, attn2):
+        """ Initializes the ABCNN-3 Block.
 
-    def forward(self, in1, in2):
+            Args:
+                attn1: ABCNN1Attention Module
+                    The attention mechanism used by the ABCNN-1 Block.
+                conv: Convolution Module
+                    The convolutional layer.
+                attn2: ABCNN2Attention Module
+                    The attention mechanism used by the ABCNN-2 Block
+                    (also called the attention-based average pooling layer).
+                
+            Returns:
+                None
+        """
+        super().__init__()
+        self.attn1 = attn1
+        self.conv = conv
+        self.attn2 = attn2
+
+    def forward(self, x1, x2):
         """ Computes the forward pass over the ABCNN-3 Block.
 
             Args:
-                in1, in2: torch.Tensor
+                x1, x2: torch.Tensors of shape (batch_size, 1, max_length, input_size)
                     The inputs to the ABCNN-3 Block.
 
             Returns:
-                out1, out2: torch.Tensor
-                    The outputs of the ABCNN-3 Block.
+                w1, w2: torch.Tensors of shape (batch_size, 1, max_length, output_size)
+                    The outputs of the atention-based average pooling layer. These
+                    are passed to the next Block.
+                a1, a2: torch.Tensors of shape (batch_size, output_size)
+                    The outputs of the all-ap average pooling layer. These are
+                    optionally passed to the output layer.
         """
-        pass
+        o1, o2 = self.attn1(x1, x2)
+        c1, c2 = self.conv(o1), self.conv(o2)
+        w1, w2 = self.attn(c1, c2)
+        a1, a2 = self.ap(c1), self.ap(c2)
+        return w1, w2, a1, a2

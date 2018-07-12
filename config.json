@@ -1,46 +1,45 @@
 {
-    "datapaths": {
+    "data_paths": {
         "train": "data/quora/train.csv",
         "val": "data/quora/val.csv",
         "test": "data/quora/test.csv"
     },
     "embeddings": {
-        "use_pretrained_embeddings": true,
         "embeddings_path": "embeddings/GoogleNews-vectors-negative300.bin.gz",
         "embeddings_size": 300
     },
-    "blocks": [
-        {  
-            "type": "bcnn",
-            "conv": {
-                "in_channels": 1,
-                "out_channels": 50,
-                "width": 3,
-                "height": 50
-            },
-            "pool": {
-                "width": 3
-            }
-        },
-        {
-            "type": "bcnn",
-            "conv": {
-                "in_channels": 50,
-                "out_channels": 50,
-                "width": 3,
-                "height": 50
-            },
-            "pool": {
-                "width": 3
-            }
-        }
-    ],
-    "train": {
-        "batch_size": 64,
-        "start_epoch": 1,
-        "num_epochs": 20,
-        "log_every": 0
+    "optim": {
+        "lr": 0.085,
+        "weight_decay": 0.0002
     },
-    "include_all_pooling": true,
-    "max_length": 20
+    "model": {
+        "max_length": 20,
+        "use_all_layers": true,
+        "blocks": [
+            {  
+                "type": "abcnn2",
+                "input_size": 300,
+                "output_size": 50,
+                "width": 3,
+                "match_score": "euclidean",
+                "share_weights": true
+            },
+            {
+                "type": "abcnn2",
+                "input_size": 50,
+                "output_size": 50,
+                "width": 3,
+                "match_score": "euclidean",
+                "share_weights": true
+            }
+        ]
+    },
+    "train": {
+        "batch_size": 2048,
+        "start_epoch": 1,
+        "num_epochs": 30,
+        "log_every": 5,
+        "num_workers": 16,
+        "checkpoint_dir": "gpu0"
+    }
 }

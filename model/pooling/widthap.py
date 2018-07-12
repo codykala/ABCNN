@@ -21,17 +21,17 @@ class WidthAP(nn.Module):
                 None
         """
         super().__init__()
-        self.wp = nn.AvgPool2d((1, width), stride=(1, 1))
+        self.wp = nn.AvgPool2d((width, 1), stride=1)
 
     def forward(self, x):
         """ Implements the forward pass over the w-ap layer. 
         
             Args:
-                x: torch.Tensor of shape (batch_size, 1, height, seq_len + width - 1)
+                x: torch.Tensor of shape (batch_size, 1, max_length + width - 1, height)
                     The output of the convolution layer.
 
             Returns:
-                out: torch.Tensor of shape (batch_size, 1, height, seq_len)
+                out: torch.Tensor of shape (batch_size, 1, max_length, height)
                     The output of the w-ap layer.
         """
         return self.wp(x)

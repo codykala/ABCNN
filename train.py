@@ -1,21 +1,25 @@
 # coding=utf-8
 
-import datetime
+import numpy as np
+import os
 import torch
-import torchvision
-import torch.nn as nn
-import torch.nn.functional as F
+from itertools import chain
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
+from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from utils import save_checkpoint
 from utils import generate_plots
 
+
 # Use GPU if available, otherwise use CPU.
 USE_CUDA = torch.cuda.is_available()
 
-def train(model, loss_fn, optimizer, metrics, history, trainset, valset, 
-            config):
+def train(model, loss_fn, optimizer, history, trainset, valset, config):
     """ Trains the model by optimizing with respect to the given loss
         function using the given optimizer.
 
@@ -26,13 +30,11 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
                 Defines the loss function.
             optimizer: torch.optim.optimizer 
                 Defines the optimizer.
-            metrics: dict
-                Contains callable functions for each metric.
             history: dict
                 Contains histories of desired run metrics.
             trainset: torch.utils.data.Dataset 
                 Contains the training data.
-            valset: a torch.utils.data.Dataset 
+            valset: torch.utils.data.Dataset 
                 Contains the validation data.
             config: dict
                 Configures the training loop. Contains the following keys:
@@ -50,6 +52,9 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
                     How often to save model checkpoints and generate
                     plots. To turn off logging, set this value to 0.
                     Default value is 5.
+                num_workers: int
+                    How many works to assign to the DataLoader.
+                    Default value is 4.
 
         Returns:
             model: a torch.nn.Module defining the trained model.
@@ -60,29 +65,64 @@ def train(model, loss_fn, optimizer, metrics, history, trainset, valset,
     start_epoch = config.get("start_epoch", 1)
     num_epochs = config.get("num_epochs", 20)
     log_every = config.get("save_every", 5)
+    num_workers = config.get("num_workers", 4)
+    checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
+
+    # Use the f1 score to determine best checkpoint
+    best_val_f1 = 0 
 
     # Training loop
-    for epoch in range(start_epoch, num_epochs + 1):
+    for epoch in tqdm(range(start_epoch, num_epochs + 1), desc="Epochs", position=0):
 
-        # Process train and val datasets
-        model, train_loss = process_batches(model, loss_fn, optimizer, trainset, batch_size, True)
-        val_loss = process_batches(model, loss_fn, optimizer, valset, batch_size, False)
+        # Process training dataset
+        model, train_results, train_cm = \
+            process_batches(model, loss_fn, optimizer, trainset, batch_size, 
+                            num_workers, True)
+        tqdm.write(np.array_str(train_cm) + "\n" +
+            "Accuracy:{}, Precision: {}, Recall: {}, F1: {}".format(
+                train_results["train_accuracy"],
+                train_results["train_precision"],
+                train_results["train_recall"],
+                train_results["train_f1"]
+            )
+        )
+    
+        # Process validation dataset
+        val_results, val_cm \
+            = process_batches(model, loss_fn, optimizer, valset, batch_size, 
+                            num_workers, False)
+        tqdm.write(np.array_str(val_cm) + "\n" +
+            "Accuracy:{}, Precision: {}, Recall: {}, F1: {}".format(
+                val_results["val_accuracy"],
+                val_results["val_precision"],
+                val_results["val_recall"],
+                val_results["val_f1"]
+            )
+        )
 
-        # Update run statistics
-        # TODO: Add tracking for other statistics
-        history["train loss"].append(train_loss)
-        history["val loss"].append(val_loss)
+        # Update run history
+        for name, val in chain(train_results.items(), val_results.items()):
+            history[name].append(val)
 
-        # Log results
+        # Update best checkpoint
+        if val_results["val_f1"] > best_val_f1:
+            tqdm.write("New best checkpoint!")
+            best_val_f1 = val_results["val_f1"]
+            filepath = os.path.join(checkpoint_dir, "best_checkpoint")
+            save_checkpoint(model, optimizer, history, epoch, filepath)
+
+        # Generate plots and save checkpoint
         if log_every != 0 and epoch % log_every == 0:
-            filename = str(datetime.datetime.now()) # use time stamp to name file
-            save_checkpoint(model, optimizer, history, epoch, filename)
-            generate_plots(history)
+            filename = "checkpoint_epoch_{}".format(epoch)
+            filepath = os.path.join(checkpoint_dir, filename)
+            save_checkpoint(model, optimizer, history, epoch, filepath)
+            generate_plots(history, checkpoint_dir)
 
     return model
 
 
-def process_batches(model, loss_fn, optimizer, dataset, batch_size, is_training):
+def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers, 
+                        is_training):
     """ Processes the examples in the dataset in batches. If the dataset is the
         training set, then the model weights will be updated.
 
@@ -98,39 +138,82 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, is_training)
                 Contains the examples to process.
             batch_size: int
                 The number of examples to process per batch.
+            num_workers: int
+                How many workers to assign to the DataLoader.
             is_training: boolean
                 Specifies whether or not to update model weights.
 
         Returns:
             model: torch.nn.Module
-                The updated model (returned only if is_training is True)
-            loss: float
-                The loss averaged across the entire dataset.
+                The updated model. Returned only if is_training is True.
+            results: dict
+                Contains relevant evaluation metrics for the model.
+            cm: np.array
+                The confusion matrix for the model on the dataset.
     """
-    # Store batch losses
-    losses = []
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    for features, targets in dataloader:
+    # Track loss across all batches
+    total_loss = 0
+
+    # Track number of correct and incorrect predictions
+    actual = []
+    predicted = []
+
+    # Process batches
+    dataloader = \
+        DataLoader(dataset, batch_size=batch_size, shuffle=True, 
+                    num_workers=num_workers)
+    for features, targets in tqdm(dataloader, position=1):
 
         # Load batch to GPU
         if USE_CUDA:
             torch.cuda.empty_cache()
             features = features.cuda()
+            targets = targets.cuda()
 
         # Forward pass
         scores = model(features)
+        predictions = torch.argmax(scores, dim=1)
+
+        # Store actual and predicted labels
+        actual.extend(targets.cpu().tolist())
+        predicted.extend(predictions.cpu().tolist())
+
+        # Update loss
         batch_loss = torch.sum(loss_fn(scores, targets))
-        losses.append(batch_loss)
+        total_loss += float(batch_loss)
 
         # Backward pass
         if is_training:
             optimizer.zero_grad()
             batch_loss.backward()
-            optimizer.step()
+            optimizer.step()     
 
-    # Compute averaged loss
-    loss = sum(losses) / len(dataset)   
+    # Compute evaluation metrics
+    loss = total_loss / len(dataset)
+    accuracy = accuracy_score(actual, predicted)  
+    precision = precision_score(actual, predicted, average="macro")
+    recall = recall_score(actual, predicted, average="macro")
+    f1 = f1_score(actual, predicted, average="macro")
+
+    # Generate confusion matrix
+    cm = confusion_matrix(actual, predicted, labels=[0, 1])
+
+    # Store the results
     if is_training:
-        return model, loss
+        results = {
+            "train_loss": loss,
+            "train_accuracy": accuracy,
+            "train_precision": precision,
+            "train_recall": recall,
+            "train_f1": f1,
+        }
+        return model, results, cm
     else:
-        return loss
+        results = {
+            "val_loss": loss,
+            "val_accuracy": accuracy,
+            "val_precision": precision,
+            "val_recall": recall,
+            "val_f1": f1
+        }
+        return results, cm
