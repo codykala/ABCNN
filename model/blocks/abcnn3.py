@@ -3,6 +3,8 @@
 import torch
 import torch.nn as nn
 
+from model.pooling.allap import AllAP
+
 class ABCNN3Block(nn.Module):
     """ Implements a single ABCNN-3 block as described in this paper: 
 
@@ -28,6 +30,7 @@ class ABCNN3Block(nn.Module):
         self.attn1 = attn1
         self.conv = conv
         self.attn2 = attn2
+        self.ap = AllAP()
 
     def forward(self, x1, x2):
         """ Computes the forward pass over the ABCNN-3 Block.
@@ -46,6 +49,6 @@ class ABCNN3Block(nn.Module):
         """
         o1, o2 = self.attn1(x1, x2)
         c1, c2 = self.conv(o1), self.conv(o2)
-        w1, w2 = self.attn(c1, c2)
+        w1, w2 = self.attn2(c1, c2)
         a1, a2 = self.ap(c1), self.ap(c2)
         return w1, w2, a1, a2

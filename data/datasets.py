@@ -100,8 +100,8 @@ def load_datasets(datapaths, embeddings_path, max_length):
                 pbar.update(1)
 
         # Convert to LongTensors
-        q2n_rep = torch.LongTensor(q2n_rep) # need to be ints to index into embeddings matrix
-        labels = torch.FloatTensor(labels) # need to be floats for loss computation
+        q2n_rep = torch.LongTensor(q2n_rep)
+        labels = torch.LongTensor(labels) 
         datasets[name] = TensorDataset(q2n_rep, labels)
 
     return datasets, word2index, word2vec

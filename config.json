@@ -9,7 +9,7 @@
         "embeddings_size": 300
     },
     "optim": {
-        "lr": 0.085,
+        "lr": 0.005,
         "weight_decay": 0.0002
     },
     "model": {
@@ -17,7 +17,7 @@
         "use_all_layers": true,
         "blocks": [
             {  
-                "type": "abcnn2",
+                "type": "abcnn3",
                 "input_size": 300,
                 "output_size": 50,
                 "width": 3,
@@ -25,7 +25,7 @@
                 "share_weights": true
             },
             {
-                "type": "abcnn2",
+                "type": "abcnn3",
                 "input_size": 50,
                 "output_size": 50,
                 "width": 3,
@@ -40,6 +40,6 @@
         "num_epochs": 30,
         "log_every": 5,
         "num_workers": 16,
-        "checkpoint_dir": "gpu0"
+        "checkpoint_dir": "checkpoints/gpu0"
     }
 }

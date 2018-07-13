@@ -56,11 +56,13 @@ class ABCNN2Attention(nn.Module):
         output_size = x1.shape[3]
         w1 = torch.zeros((batch_size, 1, self.max_length, output_size))
         w2 = torch.zeros((batch_size, 1, self.max_length, output_size))
+        w1 = w1.cuda() if USE_CUDA else w1
+        w2 = w2.cuda() if USE_CUDA else w2
 
         # Compute the outputs
         for j in range(self.max_length):
-            row_sum = torch.sum(A[:, :, j, :], dim=3) # shape (batch_size, 1)
-            col_sum = torch.sum(A[:, :, :, j], dim=2) # shape (batch_size, 1)
+            row_sum = torch.sum(A[:, :, j, :], dim=2, keepdim=True) # shape (batch_size, 1)
+            col_sum = torch.sum(A[:, :, :, j], dim=2, keepdim=True) # shape (batch_size, 1)
             for k in range(j, j + self.width):
                 w1[:, :, j, :] += row_sum * x1[:, :, k, :]
                 w2[:, :, j, :] += col_sum * x2[:, :, k, :]
