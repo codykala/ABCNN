@@ -88,8 +88,8 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
         )
     
         # Process validation dataset
-        val_results, val_cm \
-            = process_batches(model, loss_fn, optimizer, valset, batch_size, 
+        val_results, val_cm = \
+            process_batches(model, loss_fn, optimizer, valset, batch_size, 
                             num_workers, False)
         tqdm.write(np.array_str(val_cm) + "\n" +
             "Accuracy:{}, Precision: {}, Recall: {}, F1: {}".format(

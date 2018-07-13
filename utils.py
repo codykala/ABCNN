@@ -29,12 +29,18 @@ def save_checkpoint(model, optimizer, history, epoch, filepath):
     torch.save(state, filepath)
 
 
-def load_checkpoint(filename):
+def load_checkpoint(filename, map_location=None):
     """ Loads a model from a pickled checkpoint file.
 
         Args:
             filename: string
                 The path to the checkpoint file.
+            map_location: string or callable
+                Specifies where the loaded tensors should be stored.
+                If not provided, then the Tensors will be loaded
+                to wherever they were loaded when the model was saved.
+                Use device tags like "cpu" or "cuda:device_id" (i.e. "cuda:0")
+                to specify a device.
 
         Returns
             model: torch.nn.Module
@@ -46,7 +52,7 @@ def load_checkpoint(filename):
             epoch: int
                 The current epoch number.
     """
-    state = torch.load(filename)
+    state = torch.load(filename, map_location)
     return state
     
 
