@@ -11,7 +11,7 @@ class BCNNBlock(nn.Module):
         http://www.aclweb.org/anthology/Q16-1019
     """
 
-    def __init__(self, conv, pool):
+    def __init__(self, conv, pool, dropout_rate=0.5):
         """ Initializes the BCNN Block.
 
             Args:
@@ -27,6 +27,7 @@ class BCNNBlock(nn.Module):
         self.conv = conv
         self.pool = pool
         self.ap = AllAP()
+        self.dropout = nn.Dropout2d(p=dropout_rate)
 
     def forward(self, x1, x2):
         """ Computes the forward pass over the BCNN Block.abs
@@ -46,4 +47,8 @@ class BCNNBlock(nn.Module):
         c1, c2 = self.conv(x1), self.conv(x2)
         w1, w2 = self.pool(c1), self.pool(c2)
         a1, a2 = self.ap(c1), self.ap(c2)
+
+        # Dropout
+        w1 = self.dropout(w1) if self.training else w1
+        w2 = self.dropout(w2) if self.training else w2
         return w1, w2, a1, a2

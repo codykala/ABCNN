@@ -3,7 +3,6 @@
 import numpy as np
 import os
 import torch
-from itertools import chain
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
@@ -76,38 +75,56 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
 
         # Process training dataset
         model, train_results, train_cm = \
-            process_batches(model, loss_fn, optimizer, trainset, batch_size, 
-                            num_workers, True)
-        tqdm.write(np.array_str(train_cm) + "\n" +
-            "Accuracy:{}, Precision: {}, Recall: {}, F1: {}".format(
-                train_results["train_accuracy"],
-                train_results["train_precision"],
-                train_results["train_recall"],
-                train_results["train_f1"]
+            process_batches(model, trainset, loss_fn, batch_size, num_workers, 
+                            desc="train", optimizer=optimizer, is_training=True)
+        tqdm.write(
+            """
+            Confusion Matrix: {} \n
+            Macro-level Accuracy: {} \n
+            Macro-level Precision: {} \n
+            Macro-level Recall: {} \n
+            Macro-level F1: {}
+            """
+            .format(
+                np.array_str(train_cm),
+                train_results["accuracy"],
+                train_results["precision"],
+                train_results["recall"],
+                train_results["f1"]
             )
         )
     
         # Process validation dataset
         val_results, val_cm = \
-            process_batches(model, loss_fn, optimizer, valset, batch_size, 
-                            num_workers, False)
-        tqdm.write(np.array_str(val_cm) + "\n" +
-            "Accuracy:{}, Precision: {}, Recall: {}, F1: {}".format(
-                val_results["val_accuracy"],
-                val_results["val_precision"],
-                val_results["val_recall"],
-                val_results["val_f1"]
+            process_batches(model, valset, loss_fn, batch_size, num_workers, 
+                            desc="val", optimizer=optimizer, is_training=False)
+        tqdm.write(
+            """
+            Confusion Matrix: {} \n
+            Macro-level Accuracy: {} \n
+            Macro-level Precision: {} \n
+            Macro-level Recall: {} \n
+            Macro-level F1: {}
+            """
+            .format(
+                np.array_str(val_cm),
+                val_results["accuracy"],
+                val_results["precision"],
+                val_results["recall"],
+                val_results["f1"]
             )
         )
 
         # Update run history
-        for name, val in chain(train_results.items(), val_results.items()):
-            history[name].append(val)
+        for name, val in train_results.items(): 
+            history["train_{}".format(name)].append(val)
+        for name, val in val_results.items():
+            history["val_{}".format(name)].append(val)
 
         # Update best checkpoint
-        if val_results["val_f1"] > best_val_f1:
+        if val_results["f1"] > best_val_f1:
             tqdm.write("New best checkpoint!")
-            best_val_f1 = val_results["val_f1"]
+            best_val_f1 = val_results["f1"]
             filepath = os.path.join(checkpoint_dir, "best_checkpoint")
             save_checkpoint(model, optimizer, history, epoch, filepath)
 
@@ -121,27 +138,59 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     return model
 
 
-def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers, 
-                        is_training):
+def evaluate(model, dataset, loss_fn, batch_size=64, num_workers=4, desc="eval"):
+    """ Simple wrapper function for process_batches to evaluate the model 
+        the given dataset. 
+    """
+    results, cm = process_batches(model, dataset, loss_fn, batch_size, 
+                                    num_workers, desc)
+    print(
+        """
+        Confusion Matrix: {} \n
+        Macro-level Accuracy: {} \n
+        Macro-level Precision: {} \n
+        Macro-level Recall: {} \n
+        Macro-level F1: {}
+        """
+        .format(
+            np.array_str(cm),
+            results["accuracy"],
+            results["precision"],
+            results["recall"],
+            results["f1"]
+        )
+    )
+    return results, cm
+
+
+def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=None, 
+                    optimizer=None, is_training=False):
     """ Processes the examples in the dataset in batches. If the dataset is the
         training set, then the model weights will be updated.
 
         Args:
             model: torch.nn.Module
                 Defines the model.
+            dataset: torch.utils.data.Dataset
+                Contains the examples to process.
             loss_fn: torch.nn.Module
                 Defines the loss function. The loss function takes batches
                 of scores and targets and returns a batch of losses.
-            optimizer: torch.optim.optimizer
-                Defines the optimizer.
-            dataset: torch.utils.data.Dataset
-                Contains the examples to process.
             batch_size: int
                 The number of examples to process per batch.
+                Default value is 64.
             num_workers: int
                 How many workers to assign to the DataLoader.
+                Default value is 4.
+            desc: string
+                Optional, writes a short description at the front of the
+                progress bar.
+            optimizer: torch.optim.optimizer
+                Optional, defines the optimizer. Only required for training.
+                By default, this is None.
             is_training: boolean
-                Specifies whether or not to update model weights.
+                Optional, specifies whether or not to update model weights.
+                By default, this is False.
 
         Returns:
             model: torch.nn.Module
@@ -162,7 +211,7 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
     dataloader = \
         DataLoader(dataset, batch_size=batch_size, shuffle=True, 
                     num_workers=num_workers)
-    for features, targets in tqdm(dataloader, position=1):
+    for features, targets in tqdm(dataloader, desc=desc, position=1):
 
         # Load batch to GPU
         if USE_CUDA:
@@ -199,21 +248,14 @@ def process_batches(model, loss_fn, optimizer, dataset, batch_size, num_workers,
     cm = confusion_matrix(actual, predicted, labels=[0, 1])
 
     # Store the results
+    results = {
+        "loss": loss,
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+    }
+    
     if is_training:
-        results = {
-            "train_loss": loss,
-            "train_accuracy": accuracy,
-            "train_precision": precision,
-            "train_recall": recall,
-            "train_f1": f1,
-        }
         return model, results, cm
-    else:
-        results = {
-            "val_loss": loss,
-            "val_accuracy": accuracy,
-            "val_precision": precision,
-            "val_recall": recall,
-            "val_f1": f1
-        }
-        return results, cm
+    return results, cm

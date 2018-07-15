@@ -11,11 +11,12 @@ class ABCNN2Block(nn.Module):
         http://www.aclweb.org/anthology/Q16-1019
     """
     
-    def __init__(self, conv, attn):
+    def __init__(self, conv, attn, dropout_rate=0.5):
         super().__init__()
         self.conv = conv
         self.attn = attn
         self.ap = AllAP()
+        self.dropout = nn.Dropout2d(p=dropout_rate)
 
     def forward(self, x1, x2):
         """ Computes the forward pass over the ABCNN-1 Block.
@@ -35,4 +36,8 @@ class ABCNN2Block(nn.Module):
         c1, c2 = self.conv(x1), self.conv(x2)
         w1, w2 = self.attn(c1, c2)
         a1, a2 = self.ap(c1), self.ap(c2)
+
+        # Dropout
+        w1 = self.dropout(w1) if self.training else w1
+        w2 = self.dropout(w2) if self.training else w2
         return w1, w2, a1, a2

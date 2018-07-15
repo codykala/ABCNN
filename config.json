@@ -17,29 +17,31 @@
         "use_all_layers": true,
         "blocks": [
             {  
-                "type": "abcnn3",
+                "type": "abcnn1",
                 "input_size": 300,
                 "output_size": 50,
                 "width": 3,
                 "match_score": "euclidean",
-                "share_weights": true
+                "share_weights": true,
+                "dropout_rate": 0.5
             },
             {
-                "type": "abcnn3",
+                "type": "abcnn1",
                 "input_size": 50,
                 "output_size": 50,
                 "width": 3,
                 "match_score": "euclidean",
-                "share_weights": true
+                "share_weights": true,
+                "dropout_rate": 0.5
             }
         ]
     },
     "train": {
         "batch_size": 2048,
         "start_epoch": 1,
-        "num_epochs": 30,
-        "log_every": 5,
+        "num_epochs": 10,
+        "log_every": 1,
         "num_workers": 16,
-        "checkpoint_dir": "checkpoints/gpu0"
+        "checkpoint_dir": "checkpoints/gpu1"
     }
 }

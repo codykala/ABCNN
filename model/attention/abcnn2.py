@@ -61,9 +61,9 @@ class ABCNN2Attention(nn.Module):
 
         # Compute the outputs
         for j in range(self.max_length):
-            row_sum = torch.sum(A[:, :, j, :], dim=2, keepdim=True) # shape (batch_size, 1)
-            col_sum = torch.sum(A[:, :, :, j], dim=2, keepdim=True) # shape (batch_size, 1)
-            for k in range(j, j + self.width):
+            for k in range(j, j + self.width):    
+                row_sum = torch.sum(A[:, :, :, k], dim=2, keepdim=True)
+                col_sum = torch.sum(A[:, :, k, :], dim=2, keepdim=True)
                 w1[:, :, j, :] += row_sum * x1[:, :, k, :]
                 w2[:, :, j, :] += col_sum * x2[:, :, k, :]
         return w1, w2
