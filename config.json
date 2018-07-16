@@ -5,8 +5,10 @@
         "test": "data/quora/test.csv"
     },
     "embeddings": {
-        "embeddings_path": "embeddings/GoogleNews-vectors-negative300.bin.gz",
-        "embeddings_size": 300
+        "path": "embeddings/wiki.en.bin",
+        "size": 300,
+        "format": "fasttext",
+        "is_binary": false
     },
     "optim": {
         "lr": 0.005,

@@ -7,4 +7,4 @@ data/__init__.py
 data/__pycache__
 data/hulo/
 data/quora/
-embeddings/GoogleNews-vectors-negative300.bin.gz 
+embeddings/
