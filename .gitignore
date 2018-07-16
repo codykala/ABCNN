@@ -2,6 +2,7 @@
 *.pyo
 *.pyc
 *.png
+checkpoints/
 data/__init__.py
 data/__pycache__
 data/hulo/
