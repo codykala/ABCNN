@@ -35,7 +35,6 @@ class Model(nn.Module):
         self.blocks = nn.ModuleList(blocks)
         self.use_all_layers = use_all_layers
         self.fc = nn.Linear(2 * final_size, 2)  
-        self.similarity = nn.CosineSimilarity(dim=1)
         self.ap = AllAP() 
         
     def forward(self, idxs):

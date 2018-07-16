@@ -63,7 +63,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     batch_size = config.get("batch_size", 20)
     start_epoch = config.get("start_epoch", 1)
     num_epochs = config.get("num_epochs", 20)
-    log_every = config.get("save_every", 5)
+    log_every = config.get("log_every", 5)
     num_workers = config.get("num_workers", 4)
     checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
 
@@ -130,6 +130,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
 
         # Generate plots and save checkpoint
         if log_every != 0 and epoch % log_every == 0:
+            print("saving checkpoint...")
             filename = "checkpoint_epoch_{}".format(epoch)
             filepath = os.path.join(checkpoint_dir, filename)
             save_checkpoint(model, optimizer, history, epoch, filepath)
