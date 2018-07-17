@@ -15,10 +15,10 @@ from tqdm import tqdm
 
 from model.attention.abcnn1 import ABCNN1Attention
 from model.attention.abcnn2 import ABCNN2Attention
-from model.blocks.bcnn import BCNNBlock
 from model.blocks.abcnn1 import ABCNN1Block
 from model.blocks.abcnn2 import ABCNN2Block
 from model.blocks.abcnn3 import ABCNN3Block
+from model.blocks.bcnn import BCNNBlock
 from model.convolution.conv import Convolution
 from model.model import Model
 from model.pooling.allap import AllAP
@@ -116,33 +116,36 @@ def setup_word2vec_model(config):
                 model.
 
         Returns:
-            embeddings_wv: KeyedVectors or None
-                The pretrained word embedding model. If a pre-trained model
-                is provided, then a KeyedVectors instance is returned.
-                Otherwise, None is returned.
+            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
+                The pretrained word embeddings. If the embeddings path
+                is for a pre-trained Word2Vec model, then a KeyedVectors
+                instance is returned. If the embeddings path is for a
+                pre-trained FastText model, then a FastTextKeyedVectors
+                instance is returned. Otherwise, None is returned.
     """
-    print("Loading pre-trained word embedding model...")
-    
     # Get relevant parameters from config file
     embeddings_path = config["embeddings"]["path"]
     embeddings_format = config["embeddings"]["format"]
     is_binary = config["embeddings"]["is_binary"]
    
     # Load pre-trained word embeddings
-    embeddings_wv = None
+    word_vectors = None
+    embeddings_model = None
     if embeddings_format == "word2vec":
         if os.path.isfile(embeddings_path):
-            embeddings_wv = KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
+            print("Loading Word2Vec word embeddings...")
+            word_vectors = KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
     elif embeddings_format == "fasttext":
         if os.path.isfile(embeddings_path):
+            print("Loading FastText word embeddings...")
             embeddings_model = FastText.load_fasttext_format(embeddings_path)
-            embeddings_wv = embeddings_model.wv
+            word_vectors = embeddings_model.wv
     else:
         raise Exception("Unsupported type. Must be one of 'word2vec' or 'fasttext'.")
-    return embeddings_wv
+    return word_vectors
 
 
-def setup_datasets(embeddings_wv, config):
+def setup_datasets(word_vectors, config):
     """ Converts questions, which are represented as strings, to lists of
         indices into the embedding matrix. Additionally builds mappings from
         words to indices and vice versa.
@@ -153,10 +156,10 @@ def setup_datasets(embeddings_wv, config):
         https://github.com/eliorc/Medium/blob/master/MaLSTM.ipynb
         
         Args:
-            embeddings_wv: KeyedVectors or None
-                The pre-trained word embeddings. If a pre-trained word embeddings
-                model is provided, then a KeyedVectors instance is returned.
-                Otherwise, None is returned.
+            word_vectors: KeyedVectors or None
+                The pre-trained word embeddings. If a pre-trained word embedding
+                model was provided, then this should be a KeyedVectors instance.
+                Otherwise, this should be None.
             config: dict
                 Contains the information needed to initialize the datasets.
                 See "config.json" for configuration details.
@@ -206,8 +209,8 @@ def setup_datasets(embeddings_wv, config):
                         # For Word2Vec, use random embeddings for OOV
                         # For FastText, use n-gram embeddings for OOV before
                         # defaulting to random embeddings
-                        if embeddings_wv is not None:
-                            if word in stops and word not in embeddings_wv.vocab:
+                        if word_vectors is not None:
+                            if word in stops and word not in word_vectors.vocab:
                                 continue
                         else:
                             if word in stops:
@@ -290,7 +293,7 @@ def text_to_word_list(text):
     return text
 
 
-def setup_embedding_matrix(word2index, embeddings_wv, config):
+def setup_embedding_matrix(word2index, word_vectors, config):
     """ Creates the embedding matrix. 
 
         This code is based on code from Elior Cohen's MaLSTM notebook,
@@ -301,10 +304,10 @@ def setup_embedding_matrix(word2index, embeddings_wv, config):
         Args:
             word2index: dict
                 Mapping from word/token to index in embeddings matrix.
-            embeddings_wv: KeyedVectors or None
-                The pretrained word embedding model. If a pre-trained
-                model is provided, then a KeyedVectors instance is
-                returned. Otherwise, None is returned.
+            word_vectors: KeyedVectors or None
+                The pretrained word embeddings. If a pre-trained
+                model was provided, then this should be a KeyedVectors
+                instance. Otherwise, this should be None.
             config: dict
                 Contains the information needed to initialize the model.
 
@@ -324,11 +327,11 @@ def setup_embedding_matrix(word2index, embeddings_wv, config):
     embeddings[0] = 0  # So that the padding will be ignored
 
     # Load in the pre-trained word embeddings
-    if embeddings_wv is not None:
+    if word_vectors is not None:
         with tqdm(total=num_words) as pbar:
             for word, index in word2index.items():
                 try:
-                    embeddings[index] = embeddings_wv[word]
+                    embeddings[index] = word_vectors[word]
                 except KeyError:
                     pass
                 pbar.update(1)
@@ -381,7 +384,7 @@ def setup_block(max_length, block_config):
         block = ABCNN3Block(attn1, conv, attn2, dropout_rate=dropout_rate)
 
     else:
-        raise Exception("Unexpected value of type. Should be one of 'bcnn', 'abcnn1', 'abcnn2', 'abcnn3'.")
+        raise Exception("Unsupported type. Must be one of 'bcnn', 'abcnn1', 'abcnn2', 'abcnn3'.")
 
     return block, output_size    
 

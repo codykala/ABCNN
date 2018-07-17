@@ -11,28 +11,28 @@
         "is_binary": false
     },
     "optim": {
-        "lr": 0.005,
-        "weight_decay": 0.0002
+        "lr": 0.055,
+        "weight_decay": 0.0005
     },
     "model": {
-        "max_length": 20,
+        "max_length": 15,
         "use_all_layers": true,
         "blocks": [
             {  
-                "type": "abcnn1",
+                "type": "abcnn3",
                 "input_size": 300,
                 "output_size": 50,
                 "width": 3,
-                "match_score": "euclidean",
+                "match_score": "manhattan",
                 "share_weights": true,
                 "dropout_rate": 0.5
             },
             {
-                "type": "abcnn1",
+                "type": "abcnn3",
                 "input_size": 50,
                 "output_size": 50,
                 "width": 3,
-                "match_score": "euclidean",
+                "match_score": "manhattan",
                 "share_weights": true,
                 "dropout_rate": 0.5
             }
@@ -43,8 +43,9 @@
         "start_epoch": 1,
         "num_epochs": 10,
         "log_every": 1,
+        "plot_every": 5,
         "num_workers": 16,
-        "checkpoint_dir": "checkpoints/gpu0",
-        "verbose": true
+        "checkpoint_dir": "checkpoints/gpu1",
+        "verbose": false
     }
 }
