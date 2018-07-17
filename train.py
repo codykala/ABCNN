@@ -54,6 +54,9 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
                 num_workers: int
                     How many works to assign to the DataLoader.
                     Default value is 4.
+                verbose: boolean
+                    Whether or not to print results to console during training.
+                    Progress bar is still included. Default value is False.
 
         Returns:
             model: a torch.nn.Module defining the trained model.
@@ -66,6 +69,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     log_every = config.get("log_every", 5)
     num_workers = config.get("num_workers", 4)
     checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
+    verbose = config.get("verbose", False)
 
     # Use the f1 score to determine best checkpoint
     best_val_f1 = 0 
@@ -77,43 +81,45 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
         model, train_results, train_cm = \
             process_batches(model, trainset, loss_fn, batch_size, num_workers, 
                             desc="train", optimizer=optimizer, is_training=True)
-        tqdm.write(
-            """
-            Confusion Matrix: {} \n
-            Macro-level Accuracy: {} \n
-            Macro-level Precision: {} \n
-            Macro-level Recall: {} \n
-            Macro-level F1: {}
-            """
-            .format(
-                np.array_str(train_cm),
-                train_results["accuracy"],
-                train_results["precision"],
-                train_results["recall"],
-                train_results["f1"]
+        if verbose:
+            tqdm.write(
+                """
+                Confusion Matrix: {} \n
+                Macro-level Accuracy: {} \n
+                Macro-level Precision: {} \n
+                Macro-level Recall: {} \n
+                Macro-level F1: {}
+                """
+                .format(
+                    np.array_str(train_cm),
+                    train_results["accuracy"],
+                    train_results["precision"],
+                    train_results["recall"],
+                    train_results["f1"]
+                )
             )
-        )
     
         # Process validation dataset
         val_results, val_cm = \
             process_batches(model, valset, loss_fn, batch_size, num_workers, 
                             desc="val", optimizer=optimizer, is_training=False)
-        tqdm.write(
-            """
-            Confusion Matrix: {} \n
-            Macro-level Accuracy: {} \n
-            Macro-level Precision: {} \n
-            Macro-level Recall: {} \n
-            Macro-level F1: {}
-            """
-            .format(
-                np.array_str(val_cm),
-                val_results["accuracy"],
-                val_results["precision"],
-                val_results["recall"],
-                val_results["f1"]
+        if verbose:
+            tqdm.write(
+                """
+                Confusion Matrix: {} \n
+                Macro-level Accuracy: {} \n
+                Macro-level Precision: {} \n
+                Macro-level Recall: {} \n
+                Macro-level F1: {}
+                """
+                .format(
+                    np.array_str(val_cm),
+                    val_results["accuracy"],
+                    val_results["precision"],
+                    val_results["recall"],
+                    val_results["f1"]
+                )
             )
-        )
 
         # Update run history
         for name, val in train_results.items(): 
@@ -123,14 +129,16 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
 
         # Update best checkpoint
         if val_results["f1"] > best_val_f1:
-            tqdm.write("New best checkpoint!")
+            if verbose:
+                tqdm.write("New best checkpoint!")
             best_val_f1 = val_results["f1"]
             filepath = os.path.join(checkpoint_dir, "best_checkpoint")
             save_checkpoint(model, optimizer, history, epoch, filepath)
 
         # Generate plots and save checkpoint
         if log_every != 0 and epoch % log_every == 0:
-            print("saving checkpoint...")
+            if verbose: 
+                print("saving checkpoint...")
             filename = "checkpoint_epoch_{}".format(epoch)
             filepath = os.path.join(checkpoint_dir, filename)
             save_checkpoint(model, optimizer, history, epoch, filepath)

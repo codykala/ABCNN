@@ -8,6 +8,7 @@ import re
 import torch
 import torch.nn as nn
 from gensim.models import KeyedVectors
+from gensim.models import FastText
 from nltk.corpus import stopwords
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
@@ -46,7 +47,7 @@ def read_config(config_path):
 
 
 def setup(config):
-    """ Sets up the datasets and model for training/evaluation.
+    """ Handles all of the setup needed to run an ABCNN model.
 
         Args:
             config: dict
@@ -59,41 +60,89 @@ def setup(config):
             model: nn.Module
                 The instantiated model.
     """
+    embeddings_wv = setup_word2vec_model(config)
+    datasets, word2index = setup_datasets(embeddings_wv, config)
+    embeddings = setup_embedding_matrix(word2index, embeddings_wv, config)    
+    model = setup_model(embeddings, config)
+    return datasets, model
 
-    # Load the datasets
-    data_paths = config["data_paths"]
-    embeddings_path = config["embeddings"]["embeddings_path"]
+
+def setup_model(embeddings, config):
+    """ Sets up the model for training/evaluation.
+
+        Args:
+            embeddings: nn.Embedding
+                The matrix of word embeddings.
+            config: dict
+                Contains the information needed to setup the model.
+
+        Returns:
+            model: nn.Module
+                The instantiated model.
+    """
+    print("Creating the ABCNN model...")
+
+    # Get relevant parameters
+    embeddings_size = config["embeddings"]["size"]
     max_length = config["model"]["max_length"]
-    print("Loading datasets...")
-    datasets, word2index, word2vec = \
-        setup_datasets(data_paths, embeddings_path, max_length)
+    block_configs = config["model"]["blocks"]
+    use_all_layers = config["model"]["use_all_layers"]
 
-    # Create the embedding matrix
-    embeddings_size = config["embeddings"]["embeddings_size"]
-    print("Creating word embeddings...")
-    embeddings = \
-        setup_embedding_matrix(embeddings_size, word2index, word2vec)    
-
-    # Create the Blocks
+    # Create blocks
     blocks = []
     output_sizes = [embeddings_size]
-    for block_config in config["model"]["blocks"]:
+    for block_config in block_configs:
         block, output_size = setup_block(max_length, block_config)
         blocks.append(block)
         output_sizes.append(output_size)
 
-    # Compute size of final fully connected layer
-    use_all_layers = config["model"]["use_all_layers"]
+    # Compute the size of the FC layer
     final_size = sum(output_sizes) if use_all_layers else output_sizes[-1]
 
-    # Create the model
-    model = Model(embeddings, blocks, use_all_layers, final_size).float() 
+    # Put it all together
+    model = Model(embeddings, blocks, use_all_layers, final_size).float()
     model = model.cuda() if USE_CUDA else model
     model.apply(weights_init)
-    return datasets, model
+    return model
 
 
-def setup_datasets(datapaths, embeddings_path, max_length):
+def setup_word2vec_model(config):
+    """ Loads the pre-trained word embedding model from file. The word 
+        embedding model can be either Word2Vec or FastText.
+
+        Args:
+            config: dict
+                Contains the information needed to initialize the embeddings
+                model.
+
+        Returns:
+            embeddings_wv: KeyedVectors or None
+                The pretrained word embedding model. If a pre-trained model
+                is provided, then a KeyedVectors instance is returned.
+                Otherwise, None is returned.
+    """
+    print("Loading pre-trained word embedding model...")
+    
+    # Get relevant parameters from config file
+    embeddings_path = config["embeddings"]["path"]
+    embeddings_format = config["embeddings"]["format"]
+    is_binary = config["embeddings"]["is_binary"]
+   
+    # Load pre-trained word embeddings
+    embeddings_wv = None
+    if embeddings_format == "word2vec":
+        if os.path.isfile(embeddings_path):
+            embeddings_wv = KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
+    elif embeddings_format == "fasttext":
+        if os.path.isfile(embeddings_path):
+            embeddings_model = FastText.load_fasttext_format(embeddings_path)
+            embeddings_wv = embeddings_model.wv
+    else:
+        raise Exception("Unsupported type. Must be one of 'word2vec' or 'fasttext'.")
+    return embeddings_wv
+
+
+def setup_datasets(embeddings_wv, config):
     """ Converts questions, which are represented as strings, to lists of
         indices into the embedding matrix. Additionally builds mappings from
         words to indices and vice versa.
@@ -104,19 +153,13 @@ def setup_datasets(datapaths, embeddings_path, max_length):
         https://github.com/eliorc/Medium/blob/master/MaLSTM.ipynb
         
         Args:
-            datapaths: dict
-                Each key is the name of the dataset and the value is the path
-                to the csv file containing a dataset. Each dataset is represented
-                as a pd.DataFrame organized into 3 columns: "question1",
-                "question2", and "is_duplicate". Each question is represented as a
-                string.
-            embeddings_path: string
-                Path to the file containing the pre-trained word embeddings.
-            max_length: int
-                The maximum length of sequences allowed. If a sequence
-                is longer than the maximum length, then it is truncated.
-                If a sequence is shorter than the maximum length, then it
-                is padded with 0s.
+            embeddings_wv: KeyedVectors or None
+                The pre-trained word embeddings. If a pre-trained word embeddings
+                model is provided, then a KeyedVectors instance is returned.
+                Otherwise, None is returned.
+            config: dict
+                Contains the information needed to initialize the datasets.
+                See "config.json" for configuration details.
 
         Returns:
             datasets: dict
@@ -125,17 +168,16 @@ def setup_datasets(datapaths, embeddings_path, max_length):
                 pairs, and each question is represented as a list of int.
             word2index: dict
                 Mapping from word/token to index in embeddings matrix.
-            word2vec: gensim.models.Word2VecKeyedVectors or None
-                The pre-trained word embeddings, if embeddings_path is provided.
-                Otherwise, this is None.
     """
+    print("Setting up datasets...")
+    
+    # Read in relevant parameters
+    datapaths = config["data_paths"]
+    embeddings_path = config["embeddings"]["path"]
+    max_length = config["model"]["max_length"]
+
     # Read in datasets
     datasets = {name: pd.read_csv(datapath) for name, datapath in datapaths.items()}
-
-    # Load pre-trained embeddings
-    word2vec = None
-    if os.path.isfile(embeddings_path):
-        word2vec = KeyedVectors.load_word2vec_format(embeddings_path, binary=True)
 
     # Load stop words
     stops = set(stopwords.words('english'))
@@ -160,16 +202,19 @@ def setup_datasets(datapaths, embeddings_path, max_length):
                     q2n = []  # q2n -> question numbers representation
                     for word in text_to_word_list(row[question]):
 
-                        # Check for unwanted words
-                        if word2vec is not None:
-                            # If a stop word has a pretrained word embedding, we
-                            # should use that instead of a random embedding.
-                            if word in stops and word not in word2vec.vocab:
+                        # Check for stop words
+                        # For Word2Vec, use random embeddings for OOV
+                        # For FastText, use n-gram embeddings for OOV before
+                        # defaulting to random embeddings
+                        if embeddings_wv is not None:
+                            if word in stops and word not in embeddings_wv.vocab:
                                 continue
                         else:
                             if word in stops:
                                 continue
 
+                        # Update word-index and q2n 
+                        # Only non-stop words should make it here
                         if word not in word2index:
                             word2index[word] = len(index2word)
                             q2n.append(len(index2word))
@@ -189,7 +234,7 @@ def setup_datasets(datapaths, embeddings_path, max_length):
         labels = torch.LongTensor(labels) 
         datasets[name] = TensorDataset(q2n_rep, labels)
 
-    return datasets, word2index, word2vec
+    return datasets, word2index
 
 
 def text_to_word_list(text):
@@ -245,7 +290,7 @@ def text_to_word_list(text):
     return text
 
 
-def setup_embedding_matrix(embeddings_size, word2index, word2vec):
+def setup_embedding_matrix(word2index, embeddings_wv, config):
     """ Creates the embedding matrix. 
 
         This code is based on code from Elior Cohen's MaLSTM notebook,
@@ -254,41 +299,41 @@ def setup_embedding_matrix(embeddings_size, word2index, word2vec):
         https://github.com/eliorc/Medium/blob/master/MaLSTM.ipynb 
 
         Args:
-            embeddings_size: int
-                The dimension of the word embeddings.
             word2index: dict
                 Mapping from word/token to index in embeddings matrix.
-            word2vec: gensim.models.Word2VecKeyedVectors or None
-                Word2vec model storing the pre-trained word embeddings.
-    
+            embeddings_wv: KeyedVectors or None
+                The pretrained word embedding model. If a pre-trained
+                model is provided, then a KeyedVectors instance is
+                returned. Otherwise, None is returned.
+            config: dict
+                Contains the information needed to initialize the model.
+
         Returns:
             embeddings: nn.Embedding of shape (vocab_size, embeddings_size)
                 The matrix of word embeddings.
     """
-    # Pre-trained word vectors size must match given embeddings size
-    if word2vec is not None:
-        assert (word2vec.vector_size == embeddings_size)
+    print("Creating embedding matrix...")
+    
+    # Get relevant parameters
+    embeddings_size = config["embeddings"]["size"]
+    num_words = len(word2index)
 
     # Initialize the embedding matrix
-    # Embeddings initialized by drawing uniformly from [-0.01, 0.01]
-    embeddings = \
-        np.random.uniform(
-            low=-0.01, 
-            high=0.01, 
-            size=(len(word2index) + 1, embeddings_size)
-        )
+    # Words without pre-trained embeddings will be assigned random embeddings
+    embeddings = np.random.uniform(-0.01, 0.01, (num_words + 1, embeddings_size))
     embeddings[0] = 0  # So that the padding will be ignored
 
-    # Build the embedding matrix
-    # Words without pretrained embeddings will be assigned random embeddings
-    if word2vec is not None:
-        with tqdm(total=len(word2index)) as pbar:
+    # Load in the pre-trained word embeddings
+    if embeddings_wv is not None:
+        with tqdm(total=num_words) as pbar:
             for word, index in word2index.items():
-                if word in word2vec.vocab:
-                    embeddings[index] = word2vec.word_vec(word) 
+                try:
+                    embeddings[index] = embeddings_wv[word]
+                except KeyError:
+                    pass
                 pbar.update(1)
 
-    # Convert embeddings to nn.Embeddings layer
+    # Convert to an nn.Embedding layer
     embeddings = nn.Embedding.from_pretrained(torch.from_numpy(embeddings))
     return embeddings
 
