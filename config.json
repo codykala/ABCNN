@@ -44,6 +44,7 @@
         "num_epochs": 10,
         "log_every": 1,
         "num_workers": 16,
-        "checkpoint_dir": "checkpoints/gpu0"
+        "checkpoint_dir": "checkpoints/gpu0",
+        "verbose": true
     }
 }

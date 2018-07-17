@@ -60,9 +60,9 @@ def setup(config):
             model: nn.Module
                 The instantiated model.
     """
-    embeddings_model = setup_word2vec_model(config)
-    datasets, word2index = setup_datasets(embeddings_model, config)
-    embeddings = setup_embedding_matrix(word2index, embeddings_model, config)    
+    embeddings_wv = setup_word2vec_model(config)
+    datasets, word2index = setup_datasets(embeddings_wv, config)
+    embeddings = setup_embedding_matrix(word2index, embeddings_wv, config)    
     model = setup_model(embeddings, config)
     return datasets, model
 
@@ -116,11 +116,10 @@ def setup_word2vec_model(config):
                 model.
 
         Returns:
-            embeddings_model: KeyedVectors, FastText, or None
-                The pretrained word embedding model. If a Word2Vec model is
-                provided, then a KeyedVectors instance will be returned.
-                If a FastText model is provided, then a FastText instance
-                will be returned. Otherwise, None is returned.
+            embeddings_wv: KeyedVectors or None
+                The pretrained word embedding model. If a pre-trained model
+                is provided, then a KeyedVectors instance is returned.
+                Otherwise, None is returned.
     """
     print("Loading pre-trained word embedding model...")
     
@@ -128,20 +127,22 @@ def setup_word2vec_model(config):
     embeddings_path = config["embeddings"]["path"]
     embeddings_format = config["embeddings"]["format"]
     is_binary = config["embeddings"]["is_binary"]
-    
-    embeddings_model = None
+   
+    # Load pre-trained word embeddings
+    embeddings_wv = None
     if embeddings_format == "word2vec":
         if os.path.isfile(embeddings_path):
-            embeddings_model = KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
+            embeddings_wv = KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
     elif embeddings_format == "fasttext":
         if os.path.isfile(embeddings_path):
             embeddings_model = FastText.load_fasttext_format(embeddings_path)
+            embeddings_wv = embeddings_model.wv
     else:
         raise Exception("Unsupported type. Must be one of 'word2vec' or 'fasttext'.")
-    return embeddings_model
+    return embeddings_wv
 
 
-def setup_datasets(embeddings_model, config):
+def setup_datasets(embeddings_wv, config):
     """ Converts questions, which are represented as strings, to lists of
         indices into the embedding matrix. Additionally builds mappings from
         words to indices and vice versa.
@@ -152,11 +153,10 @@ def setup_datasets(embeddings_model, config):
         https://github.com/eliorc/Medium/blob/master/MaLSTM.ipynb
         
         Args:
-            embeddings_model: KeyedVectors, FastText, or None
-                The pre-trained word embeddings. If a Word2Vec model is provided,
-                then a KeyedVectors instance is returned. If a FastText model is
-                provided, then a FastText model is returned. Otherwise, None is
-                returned.
+            embeddings_wv: KeyedVectors or None
+                The pre-trained word embeddings. If a pre-trained word embeddings
+                model is provided, then a KeyedVectors instance is returned.
+                Otherwise, None is returned.
             config: dict
                 Contains the information needed to initialize the datasets.
                 See "config.json" for configuration details.
@@ -174,7 +174,6 @@ def setup_datasets(embeddings_model, config):
     # Read in relevant parameters
     datapaths = config["data_paths"]
     embeddings_path = config["embeddings"]["path"]
-    embeddings_format = config["embeddings"]["format"]
     max_length = config["model"]["max_length"]
 
     # Read in datasets
@@ -207,8 +206,8 @@ def setup_datasets(embeddings_model, config):
                         # For Word2Vec, use random embeddings for OOV
                         # For FastText, use n-gram embeddings for OOV before
                         # defaulting to random embeddings
-                        if embeddings_model is not None:
-                            if word in stops and word not in embeddings_model.vocab:
+                        if embeddings_wv is not None:
+                            if word in stops and word not in embeddings_wv.vocab:
                                 continue
                         else:
                             if word in stops:
@@ -291,7 +290,7 @@ def text_to_word_list(text):
     return text
 
 
-def setup_embedding_matrix(word2index, embeddings_model, config):
+def setup_embedding_matrix(word2index, embeddings_wv, config):
     """ Creates the embedding matrix. 
 
         This code is based on code from Elior Cohen's MaLSTM notebook,
@@ -302,10 +301,9 @@ def setup_embedding_matrix(word2index, embeddings_model, config):
         Args:
             word2index: dict
                 Mapping from word/token to index in embeddings matrix.
-            embeddings_model: KeyedVector, FastText, or None
-                The pretrained word embedding model. If a Word2Vec model
-                is provided, then a KeyedVectors instance is returned. If
-                a FastText model is provided, then a FastText instance is
+            embeddings_wv: KeyedVectors or None
+                The pretrained word embedding model. If a pre-trained
+                model is provided, then a KeyedVectors instance is
                 returned. Otherwise, None is returned.
             config: dict
                 Contains the information needed to initialize the model.
@@ -318,23 +316,19 @@ def setup_embedding_matrix(word2index, embeddings_model, config):
     
     # Get relevant parameters
     embeddings_size = config["embeddings"]["size"]
-    embeddings_format = config["embeddings"]["format"]
     num_words = len(word2index)
 
     # Initialize the embedding matrix
-    # Word without pre-trained embeddings will be assigned random embeddings
+    # Words without pre-trained embeddings will be assigned random embeddings
     embeddings = np.random.uniform(-0.01, 0.01, (num_words + 1, embeddings_size))
     embeddings[0] = 0  # So that the padding will be ignored
 
     # Load in the pre-trained word embeddings
-    if embeddings_model is not None:
+    if embeddings_wv is not None:
         with tqdm(total=num_words) as pbar:
             for word, index in word2index.items():
-                # A bit hacky, but allows processing to continue when 
-                #   a) Word2Vec model does not have the word
-                #   b) FastText model does not have the word or any of its n-grams
                 try:
-                    embeddings[index] = embeddings_model[word]
+                    embeddings[index] = embeddings_wv[word]
                 except KeyError:
                     pass
                 pbar.update(1)
