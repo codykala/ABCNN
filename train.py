@@ -14,7 +14,6 @@ from tqdm import tqdm
 from utils import save_checkpoint
 from utils import generate_plots
 
-
 # Use GPU if available, otherwise use CPU.
 USE_CUDA = torch.cuda.is_available()
 
@@ -48,8 +47,12 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
                     How many epochs to train the model.
                     Default value is 20.
                 log_every: int
-                    How often to save model checkpoints and generate
-                    plots. To turn off logging, set this value to 0.
+                    How often to save model checkpoint. 
+                    To turn off logging, set this value to 0.
+                    Default value is 5.
+                plot_every: int
+                    How often to generate plots.
+                    To turn off plotting, set this value to 0.
                     Default value is 5.
                 num_workers: int
                     How many works to assign to the DataLoader.
@@ -67,6 +70,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     start_epoch = config.get("start_epoch", 1)
     num_epochs = config.get("num_epochs", 20)
     log_every = config.get("log_every", 5)
+    plot_every = config.get("plot_every", 5)
     num_workers = config.get("num_workers", 4)
     checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
     verbose = config.get("verbose", False)
@@ -135,13 +139,18 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
             filepath = os.path.join(checkpoint_dir, "best_checkpoint")
             save_checkpoint(model, optimizer, history, epoch, filepath)
 
-        # Generate plots and save checkpoint
+        # Save checkpoint
         if log_every != 0 and epoch % log_every == 0:
-            if verbose: 
-                print("saving checkpoint...")
+            if verbose:
+                tqdm.write("Saving checkpoint...")
             filename = "checkpoint_epoch_{}".format(epoch)
             filepath = os.path.join(checkpoint_dir, filename)
             save_checkpoint(model, optimizer, history, epoch, filepath)
+
+        # Generate plots
+        if plot_every != 0 and epoch % plot_every == 0:
+            if verbose:
+                tqdm.write("Generating plots...")
             generate_plots(history, checkpoint_dir)
 
     return model
@@ -152,7 +161,7 @@ def evaluate(model, dataset, loss_fn, batch_size=64, num_workers=4, desc="eval")
         the given dataset. 
     """
     results, cm = process_batches(model, dataset, loss_fn, batch_size, 
-                                    num_workers, desc)
+                                    num_workers, desc=desc)
     print(
         """
         Confusion Matrix: {} \n
@@ -209,6 +218,13 @@ def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=
             cm: np.array
                 The confusion matrix for the model on the dataset.
     """
+    # VERY IMPORTANT!
+    # Switch between training and eval mode
+    if is_training:
+        model = model.train()
+    else:
+        model = model.eval()
+    
     # Track loss across all batches
     total_loss = 0
 

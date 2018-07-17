@@ -55,4 +55,4 @@ elif args.eval:
     testset = datasets["test"]
     batch_size = config["train"]["batch_size"]
     num_workers = config["train"]["num_workers"]
-    eval(model, testset, loss_fn, batch_size, num_workers)
+    evaluate(model, testset, loss_fn, batch_size, num_workers)
