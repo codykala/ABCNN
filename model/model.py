@@ -12,12 +12,10 @@ class Model(nn.Module):
         http://www.aclweb.org/anthology/Q16-1019
     """
 
-    def __init__(self, embeddings, blocks, use_all_layers, final_size):
+    def __init__(self, blocks, use_all_layers, final_size):
         """ Initializes the ABCNN model layers.
 
             Args:
-                embeddings: torch.nn.Embedding
-                    Contains the word embeddings.
                 blocks: list of Blocks Module
                     Contains Block modules defining the layers of the CNN.
                 include_all_pooling: boolean
@@ -31,19 +29,18 @@ class Model(nn.Module):
                 None
         """
         super().__init__()
-        self.embeddings = embeddings
         self.blocks = nn.ModuleList(blocks)
         self.use_all_layers = use_all_layers
         self.fc = nn.Linear(2 * final_size, 2)  
         self.ap = AllAP() 
         
-    def forward(self, idxs):
+    def forward(self, inputs):
         """ Computes the forward pass over the network.
 
             Args:
-                idxs: np.array of shape (batch_size, 2, max_length)
-                    Contains the index representations for a pair of
-                    sequences.
+                inputs: torch.Tensor of shape (batch_size, 2, max_length, embedding_size)
+                    Contains the index representations for a batch of
+                    pairs of questions.
 
             Returns:
                 out1, out2: torch.FloatTensors of shape (batch_size, 1) 
@@ -53,9 +50,9 @@ class Model(nn.Module):
         outputs1 = []
         outputs2 = []
 
-        # Forward pass
-        x1 = self.embeddings(idxs[:, 0]).unsqueeze(1)  # shape (batch_size, 1, max_length, embedding_size)
-        x2 = self.embeddings(idxs[:, 1]).unsqueeze(1)  
+        # Extract the sequences
+        x1 = inputs[:, 0, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embedding_size)
+        x2 = inputs[:, 1, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embedding_size)
 
         # Store all-ap outputs for embedding layer
         a1, a2 = self.ap(x1), self.ap(x2) # shapes (batch_size, embedding_size)

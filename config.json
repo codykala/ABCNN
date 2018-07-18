@@ -2,13 +2,13 @@
     "data_paths": {
         "train": "data/quora/train.csv",
         "val": "data/quora/val.csv",
-        "test": "data/quora/test.csv"
+        "test": "data/quora/train.csv"
     },
     "embeddings": {
-        "path": "embeddings/wiki.en.bin",
+        "path": "/home/cody/fastText/word_vector_from_tickets_skipgram_dim300_subword_min2_max6_rename.bin",
         "size": 300,
         "format": "fasttext",
-        "is_binary": false
+        "is_binary": true
     },
     "optim": {
         "lr": 0.055,
@@ -23,7 +23,7 @@
                 "input_size": 300,
                 "output_size": 50,
                 "width": 3,
-                "match_score": "manhattan",
+                "match_score": "euclidean",
                 "share_weights": true,
                 "dropout_rate": 0.5
             },
@@ -32,20 +32,20 @@
                 "input_size": 50,
                 "output_size": 50,
                 "width": 3,
-                "match_score": "manhattan",
+                "match_score": "euclidean",
                 "share_weights": true,
-                "dropout_rate": 0.5
+                "dropout_rate": 0.2
             }
         ]
     },
     "train": {
-        "batch_size": 2048,
+        "batch_size": 4096,
         "start_epoch": 1,
         "num_epochs": 10,
         "log_every": 1,
         "plot_every": 5,
-        "num_workers": 16,
-        "checkpoint_dir": "checkpoints/gpu1",
+        "num_workers": 4,
+        "checkpoint_dir": "checkpoints/gpu0",
         "verbose": false
     }
 }
