@@ -60,19 +60,27 @@ def setup(config):
             model: nn.Module
                 The instantiated model.
     """
-    embeddings_wv = setup_word2vec_model(config)
-    datasets, word2index = setup_datasets(embeddings_wv, config)
-    embeddings = setup_embedding_matrix(word2index, embeddings_wv, config)    
-    model = setup_model(embeddings, config)
+    # Read in relevant config info
+    data_paths = config["data_paths"]
+    embeddings_size = config["embeddings"]["size"]
+    max_length = config["model"]["max_length"]
+
+    # Setup the datasets
+    datasets = {name: pd.read_csv(data_path) for name, data_path in data_paths.items()}
+    word_vectors = setup_word_vectors(config)
+    for name, dataset in datasets.items():
+        dataset, _ = setup_dataset(dataset, word_vectors, embeddings_size, max_length)
+        datasets[name] = dataset
+
+    # Setup the model
+    model = setup_model(config)
     return datasets, model
 
 
-def setup_model(embeddings, config):
+def setup_model(config):
     """ Sets up the model for training/evaluation.
 
         Args:
-            embeddings: nn.Embedding
-                The matrix of word embeddings.
             config: dict
                 Contains the information needed to setup the model.
 
@@ -100,15 +108,15 @@ def setup_model(embeddings, config):
     final_size = sum(output_sizes) if use_all_layers else output_sizes[-1]
 
     # Put it all together
-    model = Model(embeddings, blocks, use_all_layers, final_size).float()
+    model = Model(blocks, use_all_layers, final_size).float()
     model = model.cuda() if USE_CUDA else model
     model.apply(weights_init)
     return model
 
 
-def setup_word2vec_model(config):
-    """ Loads the pre-trained word embedding model from file. The word 
-        embedding model can be either Word2Vec or FastText.
+def setup_word_vectors(config):
+    """ Loads the pre-trained word vectors. The word vector file can be in
+        Word2Vec or FastText formats.
 
         Args:
             config: dict
@@ -130,114 +138,147 @@ def setup_word2vec_model(config):
    
     # Load pre-trained word embeddings
     word_vectors = None
-    embeddings_model = None
     if embeddings_format == "word2vec":
         if os.path.isfile(embeddings_path):
-            print("Loading Word2Vec word embeddings...")
+            print("Loading Word2Vec word vectors from: {}".format(embeddings_path))
             word_vectors = KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
     elif embeddings_format == "fasttext":
         if os.path.isfile(embeddings_path):
-            print("Loading FastText word embeddings...")
+            print("Loading FastText word vectors from: {}".format(embeddings_path))
             embeddings_model = FastText.load_fasttext_format(embeddings_path)
-            word_vectors = embeddings_model.wv
+            word_vectors = embeddings_model.wv 
     else:
         raise Exception("Unsupported type. Must be one of 'word2vec' or 'fasttext'.")
     return word_vectors
 
 
-def setup_datasets(word_vectors, config):
-    """ Converts questions, which are represented as strings, to lists of
-        indices into the embedding matrix. Additionally builds mappings from
-        words to indices and vice versa.
 
-        This code is based on code from Elior Cohen's MaLSTM notebook, which
-        can be found here:
-        
-        https://github.com/eliorc/Medium/blob/master/MaLSTM.ipynb
-        
+def setup_dataset(examples, word_vectors, embeddings_size, max_length):
+    """ Convert question pairs and labels into machine-readable datasets that
+        can be used for training and evaluation.
+
         Args:
-            word_vectors: KeyedVectors or None
-                The pre-trained word embeddings. If a pre-trained word embedding
-                model was provided, then this should be a KeyedVectors instance.
-                Otherwise, this should be None.
-            config: dict
-                Contains the information needed to initialize the datasets.
-                See "config.json" for configuration details.
+            examples: pd.DataFrame or list of lists
+                Contains the examples. If examples is a pd.Dataframe instance,
+                then the examples must be separated into columns named
+                "question1", "question2", and "is_duplicate". If examples is a
+                list of lists, then each example will be in the format 
+                [question1, question2, label]. Each question is a string of words, 
+                and the label is 0 or 1.
+            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
+                The pre-trained word vectors. If word_vectors is a KeyedVectors
+                instance, then only words in its vocabulary can be used.
+                If word_vectors is a FastTextKeyedVectors instance, then OOV
+                words can potentially be generated on the fly using n-gram word
+                vectors. If word_vectors is None, then a random embedding is used.
+            embeddings_size: int
+                The dimension of the word embeddings
+            max_length: int
+                The maximum length of questions/sequences.
 
         Returns:
-            datasets: dict
-                Each key is the name of the dataset and the value is a
-                pd.DataFrame storing the dataset. Each dataset contains question
-                pairs, and each question is represented as a list of int.
-            word2index: dict
-                Mapping from word/token to index in embeddings matrix.
+            dataset: TensorDataset
+                Contains the feature maps and labels for all of the question pairs
+                in the given set of examples.
+            examples: list of tuples
+                Contains the examples in the format (question1, question2, label)
+                Each question is represented as a list of words/tokens. The
+                label is a 0 or a 1 (integer). Padding tokens (resp. features) are
+                added to the examples (resp. feature maps) so that each question
+                has max_length tokens.
     """
-    print("Setting up datasets...")
     
-    # Read in relevant parameters
-    datapaths = config["data_paths"]
-    embeddings_path = config["embeddings"]["path"]
-    max_length = config["model"]["max_length"]
 
-    # Read in datasets
-    datasets = {name: pd.read_csv(datapath) for name, datapath in datapaths.items()}
+    # Parse the data into the same format before processing
+    if isinstance(examples, pd.DataFrame):
+        pairs = examples[["question1", "question2"]].values.tolist()
+        labels = examples["is_duplicate"].tolist()
+    elif isinstance(examples, list):
+        pairs = [(x[0], x[1]) for x in examples] 
+        labels = [int(x[2]) for x in examples]
 
-    # Load stop words
-    stops = set(stopwords.words('english'))
+    # Convert to tensors / clean up text
+    features, texts = texts_to_features(pairs, word_vectors, embeddings_size, max_length)
+    examples = [(text[0], text[1], label) for text, label in zip(texts, labels)]
+    labels = torch.LongTensor(labels)
+    dataset = TensorDataset(features, labels)
+    return dataset, examples
 
-    # Create word-index mappings
-    # '<unk>' is never used, only a stand-in for the [0, 0, ..., 0] embedding
-    word2index = dict()
-    index2word = {"<unk>": 0}
 
-    # Iterate over the questions in each dataset
-    questions_cols = ['question1', 'question2']
-    for name, dataset in datasets.items():
-        num_examples = len(dataset)
-        q2n_rep = np.zeros((num_examples, 2, max_length))
-        labels = np.array(dataset["is_duplicate"], dtype=int)
-        with tqdm(total=num_examples) as pbar:
-            for index, row in dataset.iterrows():
+def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
+    """ Converts a list of texts (strings) into their feature maps.
 
-                # Iterate through the text of both questions of the row
-                for i, question in enumerate(questions_cols):
+        Args:
+            texts: list of tuple of  string
+                The text we would like to featurize in the format (question1, question2).
+            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
+                The pre-trained word vectors. If word_vectors is a KeyedVectors
+                instance, then only words in its vocabulary can be used.
+                If word_vectors is a FastTextKeyedVectors instance, then OOV
+                words can potentially be generated on the fly using n-gram word
+                vectors. If word_vectors is None, then a random embedding is used.
+            embeddings_size: int
+                The dimension of the word embeddings
+            max_length: int
+                The maximum length of questions/sequences.
 
-                    q2n = []  # q2n -> question numbers representation
-                    for word in text_to_word_list(row[question]):
+        Returns:
+            feature_maps: torch.Tensor of shape (batch_size, max_length, embedding_size)
+                The feature maps for each text.
+            processed_texts: list of lists
+                Contains the processed text for each question. Stop words are removed
+                and <unk> tokens are added to pad the sequence to max length.
+    """
+    # Process texts
+    feature_maps = []
+    processed_texts = []
+    for pair in tqdm(pairs):
 
-                        # Check for stop words
-                        # For Word2Vec, use random embeddings for OOV
-                        # For FastText, use n-gram embeddings for OOV before
-                        # defaulting to random embeddings
-                        if word_vectors is not None:
-                            if word in stops and word not in word_vectors.vocab:
-                                continue
-                        else:
-                            if word in stops:
-                                continue
+        # Process each question separately
+        feature_map = []
+        processed_text = []
+        for question in pair:
+        
+            # Parse text into words and remove stop words
+            words = text_to_word_list(question)
+            words = remove_stop_words(words, word_vectors)
 
-                        # Update word-index and q2n 
-                        # Only non-stop words should make it here
-                        if word not in word2index:
-                            word2index[word] = len(index2word)
-                            q2n.append(len(index2word))
-                            index2word[len(index2word)] = word
-                        else:
-                            q2n.append(word2index[word])
+            # Convert words to features
+            # If a word has no word vector, use a random word vector
+            features = []
+            for word in words:
+                try:
+                    feature = torch.from_numpy(word_vectors[word])
+                except (RuntimeError, KeyError):
+                    feature = torch.Tensor(embeddings_size).uniform_(-0.01, 0.01)
+                feature = feature.unsqueeze(0) # shape (1, embeddings_size)
+                features.append(feature)
 
-                    # Add padding or truncate
-                    length = max_length if len(q2n) > max_length else len(q2n)
-                    q2n = q2n[:length]
-                    q2n_rep[index, i, :length] = np.array(q2n, dtype=int)
+            # Truncate if necessary
+            length = len(words) if len(words) < max_length else max_length
+            features = features[:length]
 
-                pbar.update(1)
+            # Add padding if necessary
+            if length < max_length:
+                num_padding = max_length - length
+                padding = torch.zeros(num_padding, embeddings_size)
+                unks = ["<unk>"] * num_padding
+                features.append(padding)
+                words.extend(unks)
 
-        # Convert to LongTensors
-        q2n_rep = torch.LongTensor(q2n_rep)
-        labels = torch.LongTensor(labels) 
-        datasets[name] = TensorDataset(q2n_rep, labels)
+            # Combine features into single feature map
+            features = torch.cat(features, dim=0) # shape (max_length, embedding_size)
+            feature_map.append(features)
+            processed_text.append(words)
 
-    return datasets, word2index
+        # Stack feature maps for the question pair
+        feature_map = torch.stack(feature_map) # shape (2, batch_size, embedding_size)
+        feature_maps.append(feature_map)
+        processed_texts.append(processed_text)
+
+    # Stack feature maps for all examples
+    feature_maps = torch.stack(feature_maps)
+    return feature_maps, processed_texts
 
 
 def text_to_word_list(text):
@@ -291,6 +332,26 @@ def text_to_word_list(text):
     text = text.split()
 
     return text
+
+def remove_stop_words(words, word_vectors):
+    """ Removes all of the stop words.
+
+        Args:
+            words: list of string
+                The words in the text.
+            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
+                The pre-trained word vectors. If word_vectors is a KeyedVectors
+                instance, then only words in its vocabulary can be used.
+                If word_vectors is a FastTextKeyedVectors instance, then OOV
+                words can potentially be generated on the fly using n-gram word
+                vectors. If word_vectors is None, then a random embedding is used.
+        
+        Returns:
+            words: list of string
+                The words in the text with stop words removed.
+    """
+    stops = set(stopwords.words("english"))
+    return list(filter(lambda w: w not in stops or w in word_vectors.vocab, words))
 
 
 def setup_embedding_matrix(word2index, word_vectors, config):
