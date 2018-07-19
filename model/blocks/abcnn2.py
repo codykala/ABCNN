@@ -35,9 +35,6 @@ class ABCNN2Block(nn.Module):
         """
         c1, c2 = self.conv(x1), self.conv(x2)
         w1, w2 = self.attn(c1, c2)
+        w1, w2 = self.dropout(w1), self.dropout(w2)
         a1, a2 = self.ap(c1), self.ap(c2)
-
-        # Dropout
-        w1 = self.dropout(w1) if self.training else w1
-        w2 = self.dropout(w2) if self.training else w2
         return w1, w2, a1, a2

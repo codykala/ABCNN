@@ -5,9 +5,9 @@
         "test": "data/quora/test.csv"
     },
     "embeddings": {
-        "path": "embeddings/GoogleNews-vectors-negative300.bin.gz",
+        "path": "/home/cody/fastText/word_vector_from_tickets_skipgram_dim300_subword_min2_max6.bin",
         "size": 300,
-        "format": "word2vec",
+        "format": "fasttext",
         "is_binary": true
     },
     "optim": {
@@ -34,7 +34,7 @@
                 "width": 3,
                 "match_score": "euclidean",
                 "share_weights": true,
-                "dropout_rate": 0.1
+                "dropout_rate": 0.5
             }
         ]
     },
@@ -45,7 +45,7 @@
         "log_every": 1,
         "plot_every": 5,
         "num_workers": 4,
-        "checkpoint_dir": "checkpoints/quora/word2vec/google_news/",
+        "checkpoint_dir": "checkpoints/quora/fasttext/tickets/",
         "verbose": false
     }
 }
