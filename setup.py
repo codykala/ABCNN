@@ -258,6 +258,7 @@ def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
             # Truncate if necessary
             length = len(words) if len(words) < max_length else max_length
             features = features[:length]
+            words = words[:length]
 
             # Add padding if necessary
             if length < max_length:

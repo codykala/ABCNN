@@ -263,7 +263,7 @@ def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=
             optimizer.step()     
 
     # Compute evaluation metrics
-    loss = total_loss / len(dataset)
+    avg_loss = total_loss / len(dataset)
     accuracy = accuracy_score(actual, predicted)  
     precision = precision_score(actual, predicted, average="macro")
     recall = recall_score(actual, predicted, average="macro")
@@ -274,7 +274,8 @@ def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=
 
     # Store the results
     results = {
-        "loss": loss,
+        "total_loss": total_loss,
+        "avg_loss": avg_loss,
         "accuracy": accuracy,
         "precision": precision,
         "recall": recall,
