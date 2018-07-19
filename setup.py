@@ -10,6 +10,7 @@ import torch.nn as nn
 from gensim.models import KeyedVectors
 from gensim.models import FastText
 from nltk.corpus import stopwords
+from torch.utils.data import Dataset
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
 

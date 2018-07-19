@@ -2,7 +2,7 @@
     "data_paths": {
         "train": "data/quora/train.csv",
         "val": "data/quora/val.csv",
-        "test": "data/quora/train.csv"
+        "test": "data/quora/test.csv"
     },
     "embeddings": {
         "path": "/home/cody/fastText/word_vector_from_tickets_skipgram_dim300_subword_min2_max6_rename.bin",
