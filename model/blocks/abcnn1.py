@@ -47,9 +47,6 @@ class ABCNN1Block(nn.Module):
         o1, o2 = self.attn(x1, x2) # shapes (batch_size, 2, max_length, input_size)
         c1, c2 = self.conv(o1), self.conv(o2) # shapes (batch_size, 1, max_length + width - 1, output_size)
         w1, w2 = self.pool(c1), self.pool(c2) # shapes (batch_size, 1, max_length, output_size)
+        w1, w2 = self.dropout(w1), self.dropout(w2)
         a1, a2 = self.ap(c1), self.ap(c2) # shape (batch_size, output_size)
-        
-        # Dropout
-        w1 = self.dropout(w1) if self.training else w1 # self.training is inherited from Module
-        w2 = self.dropout(w2) if self.training else w2
         return w1, w2, a1, a2

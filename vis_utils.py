@@ -23,11 +23,7 @@ def make_block(model_dict, block_prefix, max_length, block_config):
             block: Block Module
                 The initialized block.
     """
-    # Initialize the block
     block, output_size = setup_block(max_length, block_config)
-    block = block.eval() # Put block in eval mode
-    
-    # Overwrite the block's weights
     block_dict = block.state_dict()
     for name, weights in model_dict.items():
         if block_prefix in name:
@@ -38,16 +34,16 @@ def make_block(model_dict, block_prefix, max_length, block_config):
     return block, output_size
 
 
-def plot_attention_matrix(A, yticks, xticks, filename):
+def plot_attention_matrix(A, row_ticks, col_ticks, filename):
     """ Plots the attention matrix and saves the plot to disk.
 
         Args:
             A: torch.Tensor of shape (batch_size, 1, max_length, max_length)
                 The attention matrix.
-            xticks: list of string
-                The labels to use for the x-axis ticks.
-            yticks: list of string
-                The labels to use for the y-axis ticks.
+            row_ticks: list of string
+                The labels to use for the row ticks.
+            col_ticks: list of string
+                The labels to use for the column ticks.
             filename:
                 The name of the output file.
 
@@ -55,7 +51,7 @@ def plot_attention_matrix(A, yticks, xticks, filename):
             None
     """
     # Sanity checks
-    assert(A.shape[0] == len(yticks) and A.shape[1] == len(xticks))
+    assert(A.shape[0] == len(row_ticks) and A.shape[1] == len(col_ticks))
 
     # Make plot bigger so its easier to read
     plt.rcParams["figure.figsize"] = 10, 10
@@ -66,8 +62,8 @@ def plot_attention_matrix(A, yticks, xticks, filename):
 
     # Plot the attention distribution
     plt.imshow(A, cmap="rainbow", interpolation="nearest")
-    plt.xticks(range(len(xticks)), xticks, rotation=90)
-    plt.yticks(range(len(yticks)), yticks)
+    plt.xticks(range(len(col_ticks)), col_ticks, rotation=90)
+    plt.yticks(range(len(row_ticks)), row_ticks)
     plt.colorbar()
     plt.savefig(filename)
     plt.clf()

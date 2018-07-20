@@ -8,6 +8,7 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
+from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -74,6 +75,10 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     num_workers = config.get("num_workers", 4)
     checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
     verbose = config.get("verbose", False)
+    gamma = config.get("gamma", 0.1)
+
+    # Learning rate scheduler
+    scheduler = ExponentialLR(optimizer, gamma=gamma)
 
     # Use the f1 score to determine best checkpoint
     best_val_f1 = 0 
