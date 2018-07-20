@@ -56,6 +56,7 @@ output_sizes = [embeddings_size]
 for i, block_config in enumerate(block_configs):
     block, output_size = make_block(model_dict, "block.{}.".format(i), max_length, block_config)
     block = block.cuda() if USE_CUDA else block
+    block = block.eval()
     blocks.append(block)
     output_sizes.append(output_size)
 
@@ -112,11 +113,11 @@ with open(pred_file, "w") as f:
         outputs1.append(all_ap(x1))
 
         # Generate initial attention distribution
-        A = compute_attention_matrix(x0, x1, euclidean)
+        A = compute_attention_matrix(x0, x1, manhattan)
         A = A.squeeze().cpu().numpy()
         filename = "{}_input_attn.png".format(prefix)
         filepath = os.path.join(plot_dir, filename)
-        plot_attention_matrix(A, example[1], example[0], filepath)
+        plot_attention_matrix(A, example[0], example[1], filepath)
 
         # Generate attention distribution for blocks
         for j, block in enumerate(blocks):
@@ -129,11 +130,11 @@ with open(pred_file, "w") as f:
             outputs1.append(a1)
 
             # Generate attention distribution
-            A = compute_attention_matrix(x0, x1, euclidean)
+            A = compute_attention_matrix(x0, x1, manhattan)
             A = A.squeeze().detach().cpu().numpy()
             filename = "{}_block{}_attn.png".format(prefix, j)
             filepath = os.path.join(plot_dir, filename)
-            plot_attention_matrix(A, example[1], example[0], filepath)
+            plot_attention_matrix(A, example[0], example[1], filepath)
 
         # Predict final output
         if use_all_layers:
@@ -142,10 +143,9 @@ with open(pred_file, "w") as f:
             outputs = torch.cat([outputs0[-1], outputs1[-1]], dim=0)
         outputs = outputs.cuda()  
         logits = fc(outputs)
-        scores = softmax(logits)
-        prediction = torch.argmax(scores)
+        probs = softmax(logits).tolist()
 
         # Write the text with the result
-        f.write("{},{},{}\n".format(example[0], example[1], prediction))
+        f.write("{},{},{}\n".format(example[0], example[1], probs))
 
 
