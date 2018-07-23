@@ -38,9 +38,8 @@ class Model(nn.Module):
         """ Computes the forward pass over the network.
 
             Args:
-                inputs: torch.Tensor of shape (batch_size, 2, max_length, embedding_size)
-                    Contains the index representations for a batch of
-                    pairs of questions.
+                inputs: torch.Tensors of shape (batch_size, 2, max_length, embedding_size)
+                    The initial feature maps for a batch of question pairs.
 
             Returns:
                 out1, out2: torch.FloatTensors of shape (batch_size, 1) 
@@ -59,12 +58,9 @@ class Model(nn.Module):
         outputs1.append(a1)
         outputs2.append(a2)
 
+        # Process input through blocks
         for block in self.blocks:
-
-            # Compute input to next layer
             x1, x2, a1, a2 = block(x1, x2)
-
-            # Store all-ap outputs for current layer
             outputs1.append(a1)
             outputs2.append(a2)
 

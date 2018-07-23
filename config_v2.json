@@ -1,0 +1,110 @@
+{
+    "data_paths": {
+        "train": "data/query/train.csv",
+        "val": "data/query/val.csv",
+        "test": "data/query/test.csv"
+    },
+    "embeddings": {
+        "path": "embeddings/wiki.en.bin",
+        "size": 300,
+        "format": "fasttext",
+        "is_binary": true
+    },
+    "optim": {
+        "lr": 0.0055,
+        "weight_decay": 0.005
+    },
+    "model": {
+        "max_length": 15,
+        "use_all_layer_outputs": true,
+        "layers": [
+            [
+                {
+                    "type": "abcnn3",
+                    "input_size": 300,
+                    "output_size": 12,
+                    "width": 2,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                }, 
+                {
+                    "type": "abcnn3",
+                    "input_size": 300,
+                    "output_size": 12,
+                    "width": 3,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                },
+                {
+                    "type": "abcnn3",
+                    "input_size": 300,
+                    "output_size": 12,
+                    "width": 4,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                },
+                {
+                    "type": "abcnn3",
+                    "input_size": 300,
+                    "output_size": 12,
+                    "width": 5,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                }
+            ],
+            [
+                {
+                    "type": "abcnn3",
+                    "input_size": 48,
+                    "output_size": 12,
+                    "width": 2,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                }, 
+                {
+                    "type": "abcnn3",
+                    "input_size": 48,
+                    "output_size": 12,
+                    "width": 3,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                },
+                {
+                    "type": "abcnn3",
+                    "input_size": 48,
+                    "output_size": 12,
+                    "width": 4,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                },
+                {
+                    "type": "abcnn3",
+                    "input_size": 48,
+                    "output_size": 12,
+                    "width": 5,
+                    "match_score": "manhattan",
+                    "share_weights": true,
+                    "dropout_rate": 0.5
+                }
+            ]
+        ]
+    },
+    "train": {
+        "batch_size": 64,
+        "start_epoch": 1,
+        "num_epochs": 5,
+        "log_every": 1,
+        "plot_every": 5,
+        "num_workers": 16,
+        "checkpoint_dir": "checkpoints/query/fasttext/wiki",
+        "gamma": 0.1,
+        "verbose": true
+    }
+}
