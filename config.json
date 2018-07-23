@@ -16,7 +16,7 @@
     },
     "model": {
         "max_length": 15,
-        "use_all_layers": true,
+        "use_all_block_outputs": true,
         "blocks": [
             {  
                 "type": "abcnn3",

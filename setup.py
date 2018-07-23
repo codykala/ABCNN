@@ -21,9 +21,11 @@ from model.blocks.abcnn2 import ABCNN2Block
 from model.blocks.abcnn3 import ABCNN3Block
 from model.blocks.bcnn import BCNNBlock
 from model.convolution.conv import Convolution
+from model.layers import CNNLayer
 from model.model import Model
 from model.pooling.allap import AllAP
 from model.pooling.widthap import WidthAP
+from model_v2.model import ModelV2
 from process import setup_dataset
 
 # Use GPU if available, otherwise use CPU
@@ -75,7 +77,7 @@ def setup(config):
         datasets[name] = dataset
 
     # Setup the model
-    model = setup_model(config)
+    model = setup_model_v2(config)
     return datasets, model
 
 
@@ -91,12 +93,13 @@ def setup_model(config):
                 The instantiated model.
     """
     print("Creating the ABCNN model...")
+    # TODO: Sanity check for input and output dimensions
 
     # Get relevant parameters
     embeddings_size = config["embeddings"]["size"]
     max_length = config["model"]["max_length"]
     block_configs = config["model"]["blocks"]
-    use_all_layers = config["model"]["use_all_layers"]
+    use_all_block_outputs = config["model"]["use_all_block_outputs"]
 
     # Create blocks
     blocks = []
@@ -107,10 +110,48 @@ def setup_model(config):
         output_sizes.append(output_size)
 
     # Compute the size of the FC layer
-    final_size = sum(output_sizes) if use_all_layers else output_sizes[-1]
+    final_size = sum(output_sizes) if use_all_block_outputs else output_sizes[-1]
 
     # Put it all together
-    model = Model(blocks, use_all_layers, final_size).float()
+    model = Model(blocks, use_all_block_outputs, final_size).float()
+    model = model.cuda() if USE_CUDA else model
+    model.apply(weights_init)
+    return model
+    
+
+def setup_model_v2(config):
+    """ Sets up the model for training/evaluation.
+
+        Args:
+            config: dict
+                Contains the information needed to setup the model.
+
+        Returns:
+            model: nn.Module
+                The instantiated model.
+    """
+    print("Creating the ABCNN model...")
+    # TODO: Sanity checks for input and output dimensions
+
+    # Get relevant parameters
+    embeddings_size = config["embeddings"]["size"]
+    max_length = config["model"]["max_length"]
+    layer_configs = config["model"]["layers"]
+    use_all_layer_outputs = config["model"]["use_all_layer_outputs"]
+
+    # Create the layers
+    layers = []
+    layer_sizes = [embeddings_size]
+    for layer_config in layer_configs:
+        layer, layer_size = setup_layer(layer_config)
+        layers.append(layer)
+        layer_sizes.append(layer_size)
+
+    # Compute the size of the FC layer
+    final_size = 2 * sum(layer_sizes) if use_all_layer_outputs else layer_sizes[-1]
+
+    # Put it all together
+    model = ModelV2(layers, use_all_layer_outputs, final_size).float()
     model = model.cuda() if USE_CUDA else model
     model.apply(weights_init)
     return model
@@ -188,8 +229,6 @@ def setup_dataset(examples, word_vectors, embeddings_size, max_length):
                 added to the examples (resp. feature maps) so that each question
                 has max_length tokens.
     """
-    
-
     # Parse the data into the same format before processing
     if isinstance(examples, pd.DataFrame):
         pairs = examples[["question1", "question2"]].values.tolist()
@@ -240,7 +279,7 @@ def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
         processed_text = []
         for question in pair:
         
-            # Parse text into words and remove stop words
+            # Parse text
             words = text_to_word_list(question)
             words = remove_stop_words(words, word_vectors)
 
@@ -260,7 +299,7 @@ def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
             features = features[:length]
             words = words[:length]
 
-            # Add padding if necessary
+            # Pad if necessary
             if length < max_length:
                 num_padding = max_length - length
                 padding = torch.zeros(num_padding, embeddings_size)
@@ -405,6 +444,28 @@ def setup_embedding_matrix(word2index, word_vectors, config):
     return embeddings
 
 
+def setup_layer(layer_config):
+    """ Creates a single Layer for the CNN model.
+
+        Args:
+            layer_config: dict
+                Contains the information needed to create the layer.
+
+        Returns:
+            layer: Layer module
+                The desired Layer module.
+    """
+    blocks = []
+    output_sizes = []
+    for block_config in layer_config:
+        block, output_size = setup_block(max_length, block_config)
+        blocks.append(block)
+        output_sizes.append(output_size)
+    layer = CNNLayer(blocks)
+    layer_size = sum(output_sizes)
+    return layer, layer_size
+
+
 def setup_block(max_length, block_config):
     """ Creates a single block for the CNN model.
 
@@ -468,10 +529,10 @@ def weights_init(m):
     classname = m.__class__.__name__
     if classname.find("Conv2d") != -1:
         nn.init.xavier_normal_(m.weight)
-        nn.init.constant_(m.bias, 0.1)
+        nn.init.constant_(m.bias, 0)
     elif classname.find("Linear") != -1:
         nn.init.xavier_normal_(m.weight)
-        nn.init.constant_(m.bias, 0.1)
+        nn.init.constant_(m.bias, 0)
     elif classname.find("ABCNN1Attention") != -1:
         nn.init.xavier_normal_(m.W1)
         nn.init.xavier_normal_(m.W2)
