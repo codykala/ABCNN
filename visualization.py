@@ -63,7 +63,7 @@ for i, block_config in enumerate(block_configs):
 # Create the final fully connected layer
 final_size = sum(output_sizes) if use_all_layers else output_sizes[-1]
 fc = nn.Linear(2 * final_size, 2) # get logits
-fc = fc.cuda()
+fc = fc.cuda() if USE_CUDA else fc
 fc_state_dict = fc.state_dict()
 fc_state_dict["weight"] = model_dict.get("fc.weight") 
 fc_state_dict["bias"] = model_dict.get("fc.bias")
@@ -71,17 +71,20 @@ fc.load_state_dict(fc_state_dict)
 
 # Create other layers needed for prediction
 all_ap = AllAP() # to compute all-ap outputs
-all_ap = all_ap.cuda()
+all_ap = all_ap.cuda() if USE_CUDA else all_ap
 softmax = nn.Softmax(dim=0) # get class probabilities
-softmax = softmax.cuda()
-
-# Load the word vectors 
-word_vectors = setup_word_vectors(config)
+softmax = softmax.cuda() if USE_CUDA else all_ap
 
 # Load in the example dataset
 print("Loading examples from: {}".format(args.examples_path))
 examples = pd.read_csv(args.examples_path)
+print(examples.head())
+word_vectors = setup_word_vectors(config)
 example_dataset, examples = setup_dataset(examples, word_vectors, embeddings_size, max_length)
+features, label = example_dataset[0]
+print(any(torch.isnan(features).tolist()))
+print(example_dataset[:5])
+print(examples[:5])
 
 # Save the predictiosn for each example
 pred_file = os.path.join(args.output_dir, "predictions.csv")
@@ -97,6 +100,12 @@ with open(pred_file, "w") as f:
         # Move to GPU
         features = features.cuda() if USE_CUDA else features
         label = label.cuda() if USE_CUDA else label
+
+        # Sanity check
+        print(features.shape)
+        print(label.shape)
+        assert(not any(torch.isnan(features).tolist()))
+        assert(not any(torch.isnan(label).tolist()))
 
         # Create directory to store plots
         prefix = "example{}".format(i)
@@ -123,7 +132,12 @@ with open(pred_file, "w") as f:
         for j, block in enumerate(blocks):
             
             # Get outputs for next block
+            x0, x1 = x0.detach(), x1.detach()
             x0, x1, a0, a1 = block(x0, x1)
+
+            # Sanity check
+            assert(not any(torch.isnan(x0).tolist()))
+            assert(not any(torch.isnan(x1).tolist()))
 
             # Store all-ap outputs for this block
             outputs0.append(a0)
@@ -141,9 +155,11 @@ with open(pred_file, "w") as f:
             outputs = torch.cat(outputs0 + outputs1, dim=0)
         else:
             outputs = torch.cat([outputs0[-1], outputs1[-1]], dim=0)
-        outputs = outputs.cuda()  
+        outputs = outputs.cuda() if USE_CUDA else outputs
+        assert(not any(torch.isnan(x0).tolist()))
         logits = fc(outputs)
         probs = softmax(logits).tolist()
+        print(probs)
 
         # Write the text with the result
         f.write("{},{},{}\n".format(example[0], example[1], probs))
