@@ -22,7 +22,7 @@ parser.add_argument("--path", type=str, default=None, help="path to model checkp
 args = parser.parse_args()
 
 # Basic setup
-config = read_config("config.json")
+config = read_config("config_v2.json")
 datasets, model = setup(config)
 loss_fn = nn.CrossEntropyLoss()
 optimizer = \

@@ -1,1 +1,1 @@
-# Marks "blocks" directory as a package
+# Marks "layers" directory as a package
