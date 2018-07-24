@@ -22,10 +22,10 @@ from model.blocks.abcnn3 import ABCNN3Block
 from model.blocks.bcnn import BCNNBlock
 from model.convolution.conv import Convolution
 from model.model import Model
+from model.model_v2 import ModelV2
+from model.layers.layer import CNNLayer
 from model.pooling.allap import AllAP
 from model.pooling.widthap import WidthAP
-from model_v2.model_v2 import ModelV2
-from model_v2.layers.layer import CNNLayer
 from process import setup_dataset
 
 # Use GPU if available, otherwise use CPU
@@ -143,7 +143,7 @@ def setup_model_v2(config):
     layers = []
     layer_sizes = [embeddings_size]
     for layer_config in layer_configs:
-        layer, layer_size = setup_layer(layer_config)
+        layer, layer_size = setup_layer(max_length, layer_config)
         layers.append(layer)
         layer_sizes.append(layer_size)
 
@@ -291,7 +291,7 @@ def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
                     feature = torch.from_numpy(word_vectors[word])
                 except (RuntimeError, KeyError):
                     feature = torch.Tensor(embeddings_size).uniform_(-0.01, 0.01)
-                feature = feature.unsqueeze(0) # shape (1, embeddings_size)
+                feature = feature.view(1, embeddings_size)
                 features.append(feature)
 
             # Truncate if necessary
@@ -302,14 +302,14 @@ def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
             # Pad if necessary
             if length < max_length:
                 num_padding = max_length - length
-                padding = torch.zeros(num_padding, embeddings_size)
+                padding = torch.zeros((num_padding, embeddings_size), dtype=torch.float)
                 unks = ["<unk>"] * num_padding
                 features.append(padding)
                 words.extend(unks)
 
             # Combine features into single feature map
             features = torch.cat(features, dim=0) # shape (max_length, embedding_size)
-            feature_map.append(features)
+            feature_map.append(features.clone())
             processed_text.append(words)
 
         # Stack feature maps for the question pair
@@ -444,10 +444,12 @@ def setup_embedding_matrix(word2index, word_vectors, config):
     return embeddings
 
 
-def setup_layer(layer_config):
+def setup_layer(max_length, layer_config):
     """ Creates a single Layer for the CNN model.
 
         Args:
+            max_length: int
+                The maximum length of the input sequences.
             layer_config: dict
                 Contains the information needed to create the layer.
 

@@ -22,8 +22,8 @@ class AllAP(nn.Module):
                 out: torch.Tensor of shape (batch_size, height)
                     The output of the all-ap layer.
         """
-        pool_height = x.shape[2]
-        out = F.avg_pool2d(x, (pool_height, 1)) # shape (batch_size, 1, 1, height)
+        pool_width = x.shape[2]
+        out = F.avg_pool2d(x, (pool_width, 1)) # shape (batch_size, 1, 1, height)
         out = torch.squeeze(out, dim=2) # shape (batch_size, 1, height)
         out = torch.squeeze(out, dim=1) # shape (batch_size, height)
         return out
