@@ -2,6 +2,7 @@
 *.pyo
 *.pyc
 *.png
+*deprecated/
 checkpoints/
 data/
 embeddings/

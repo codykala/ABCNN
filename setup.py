@@ -21,9 +21,7 @@ from model.blocks.abcnn2 import ABCNN2Block
 from model.blocks.abcnn3 import ABCNN3Block
 from model.blocks.bcnn import BCNNBlock
 from model.convolution.conv import Convolution
-from model.model_v1 import ModelV1
-from model.model_v2 import ModelV2
-from model.model_v3 import ModelV3
+from model.model import Model
 from model.layers.layer import CNNLayer
 from model.pooling.allap import AllAP
 from model.pooling.widthap import WidthAP
@@ -69,7 +67,6 @@ def setup(config):
     data_paths = config["data_paths"]
     embeddings_size = config["embeddings"]["size"]
     max_length = config["model"]["max_length"]
-    model_type = config["model"]["type"]
 
     # Setup the datasets
     datasets = {name: pd.read_csv(data_path) for name, data_path in data_paths.items()}

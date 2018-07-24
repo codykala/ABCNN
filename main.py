@@ -18,13 +18,12 @@ from utils import freeze_weights
 parser = argparse.ArgumentParser()
 parser.add_argument("--train", action="store_true", default=False, help="train a model")
 parser.add_argument("--eval", action="store_true", default=False, help="evaluate a model")
-parser.add_argument("--path", type=str, default=None, help="path to model checkpoint")
+parser.add_argument("--path", default=None, help="path to model checkpoint")
 parser.add_argument("--freeze", action="store_true", default=False, help="freeze the weights in the conv-pool layers.")
 args = parser.parse_args()
 
 # Sanity check command line arguments
 assert(args.train or args.eval)
-assert(os.path.isfile(args.path) if args.path is not None else None)
 
 # Basic setup
 config = read_config("config.json")
@@ -39,7 +38,7 @@ optimizer = \
 history = defaultdict(list)
 
 # Load trained model if specified
-if args.path:
+if args.path is not None:
     print("Loading model from checkpoint...")
     state = load_checkpoint(args.path)
     model_dict, optim_dict, history, epoch = state

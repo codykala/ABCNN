@@ -1,10 +1,12 @@
 # coding=utf-8
 
+import copy
 import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend("agg")  
+
 
 def freeze_weights(pretrained_model):
     """ Creates a copy of the pre-trained model with its conv-pool layer
