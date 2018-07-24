@@ -15,7 +15,7 @@
         "weight_decay": 0.005
     },
     "model": {
-        "max_length": 15,
+        "max_length": 20,
         "use_all_layer_outputs": true,
         "layers": [
             [
