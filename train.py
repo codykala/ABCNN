@@ -93,14 +93,12 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
         if verbose:
             tqdm.write(
                 """
-                Confusion Matrix: {} \n
-                Macro-level Accuracy: {} \n
-                Macro-level Precision: {} \n
-                Macro-level Recall: {} \n
+                Macro-level Accuracy: {}
+                Macro-level Precision: {}
+                Macro-level Recall: {}
                 Macro-level F1: {}
                 """
                 .format(
-                    np.array_str(train_cm),
                     train_results["accuracy"],
                     train_results["precision"],
                     train_results["recall"],
@@ -115,20 +113,21 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
         if verbose:
             tqdm.write(
                 """
-                Confusion Matrix: {} \n
-                Macro-level Accuracy: {} \n
-                Macro-level Precision: {} \n
-                Macro-level Recall: {} \n
+                Macro-level Accuracy: {}
+                Macro-level Precision: {}
+                Macro-level Recall: {}
                 Macro-level F1: {}
                 """
                 .format(
-                    np.array_str(val_cm),
                     val_results["accuracy"],
                     val_results["precision"],
                     val_results["recall"],
                     val_results["f1"]
                 )
             )
+
+        # Take step for LR
+        scheduler.step()
 
         # Update run history
         for name, val in train_results.items(): 
@@ -142,7 +141,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
                 tqdm.write("New best checkpoint!")
             best_val_f1 = val_results["f1"]
             filepath = os.path.join(checkpoint_dir, "best_checkpoint")
-            save_checkpoint(model, optimizer, history, epoch, filepath)
+            save_checkpoint(model, optimizer, history, epoch + 1, filepath)
 
         # Save checkpoint
         if log_every != 0 and epoch % log_every == 0:
@@ -150,7 +149,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
                 tqdm.write("Saving checkpoint...")
             filename = "checkpoint_epoch_{}".format(epoch)
             filepath = os.path.join(checkpoint_dir, filename)
-            save_checkpoint(model, optimizer, history, epoch, filepath)
+            save_checkpoint(model, optimizer, history, epoch + 1, filepath)
 
         # Generate plots
         if plot_every != 0 and epoch % plot_every == 0:
@@ -169,14 +168,12 @@ def evaluate(model, dataset, loss_fn, batch_size=64, num_workers=4, desc="eval")
                                     num_workers, desc=desc)
     print(
         """
-        Confusion Matrix: {} \n
-        Macro-level Accuracy: {} \n
-        Macro-level Precision: {} \n
-        Macro-level Recall: {} \n
+        Macro-level Accuracy: {}
+        Macro-level Precision: {}
+        Macro-level Recall: {}
         Macro-level F1: {}
         """
         .format(
-            np.array_str(cm),
             results["accuracy"],
             results["precision"],
             results["recall"],
@@ -223,7 +220,6 @@ def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=
             cm: np.array
                 The confusion matrix for the model on the dataset.
     """
-    # VERY IMPORTANT!
     # Switch between training and eval mode
     if is_training:
         model = model.train()
