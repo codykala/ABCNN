@@ -22,7 +22,6 @@ from model.blocks.abcnn3 import ABCNN3Block
 from model.blocks.bcnn import BCNNBlock
 from model.convolution.conv import Convolution
 from model.model import Model
-from model.model_v2 import ModelV2
 from model.layers.layer import CNNLayer
 from model.pooling.allap import AllAP
 from model.pooling.widthap import WidthAP
@@ -77,61 +76,25 @@ def setup(config):
         datasets[name] = dataset
 
     # Setup the model
-    model = setup_model_v2(config)
+    model = setup_model(config)
     return datasets, model
 
 
 def setup_model(config):
-    """ Sets up the model for training/evaluation.
+    """ Sets up the model for training/evaluation. The architecture here extends
+        on the architecture introduced in the ABCNN paper by allowing for multiple
+        convolutional layers with different window sizes (computed in parallel, not
+        in series).
 
         Args:
             config: dict
                 Contains the information needed to setup the model.
 
         Returns:
-            model: nn.Module
+            model: ModelV2 module
                 The instantiated model.
     """
     print("Creating the ABCNN model...")
-    # TODO: Sanity check for input and output dimensions
-
-    # Get relevant parameters
-    embeddings_size = config["embeddings"]["size"]
-    max_length = config["model"]["max_length"]
-    block_configs = config["model"]["blocks"]
-    use_all_block_outputs = config["model"]["use_all_block_outputs"]
-
-    # Create blocks
-    blocks = []
-    output_sizes = [embeddings_size]
-    for block_config in block_configs:
-        block, output_size = setup_block(max_length, block_config)
-        blocks.append(block)
-        output_sizes.append(output_size)
-
-    # Compute the size of the FC layer
-    final_size = sum(output_sizes) if use_all_block_outputs else output_sizes[-1]
-
-    # Put it all together
-    model = Model(blocks, use_all_block_outputs, final_size).float()
-    model = model.cuda() if USE_CUDA else model
-    model.apply(weights_init)
-    return model
-    
-
-def setup_model_v2(config):
-    """ Sets up the model for training/evaluation.
-
-        Args:
-            config: dict
-                Contains the information needed to setup the model.
-
-        Returns:
-            model: nn.Module
-                The instantiated model.
-    """
-    print("Creating the ABCNN model...")
-    # TODO: Sanity checks for input and output dimensions
 
     # Get relevant parameters
     embeddings_size = config["embeddings"]["size"]
@@ -148,10 +111,10 @@ def setup_model_v2(config):
         layer_sizes.append(layer_size)
 
     # Compute the size of the FC layer
-    final_size = 2 * sum(layer_sizes) if use_all_layer_outputs else layer_sizes[-1]
+    final_size = 2 * sum(layer_sizes) if use_all_layer_outputs else 2 * layer_sizes[-1]
 
     # Put it all together
-    model = ModelV2(layers, use_all_layer_outputs, final_size).float()
+    model = Model(layers, use_all_layer_outputs, final_size).float()
     model = model.cuda() if USE_CUDA else model
     model.apply(weights_init)
     return model

@@ -1,10 +1,33 @@
 # coding=utf-8
 
+import copy
 import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend("agg")  
+
+
+def freeze_weights(pretrained_model):
+    """ Creates a copy of the pre-trained model with its conv-pool layer
+        weights frozen. This allow us to learn only the weights in the
+        fully connected layer.
+
+        Args:
+            pretrained_model: Model module
+                The pre-trained model we want to use.
+
+        Returns:
+            model: Model module
+                The model we want to train. The weights for its conv-pool
+                layers are identical to the pre-trained model's weights.
+    """
+    model = copy.deepcopy(pretrained_model)
+    for layer in model.layers:
+        for param in layer.parameters():
+            param.requires_grad = False
+    return model
+
 
 def save_checkpoint(model, optimizer, history, epoch, filepath):
     """ Saves the state of the model to a pickle file so that it can continue 
