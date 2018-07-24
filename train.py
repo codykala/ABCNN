@@ -18,6 +18,14 @@ from utils import generate_plots
 # Use GPU if available, otherwise use CPU.
 USE_CUDA = torch.cuda.is_available()
 
+PROGRESS_MSG = \
+"""
+Macro-level accuracy: {}
+Macro-level precision: {}
+Macro-level recall: {}
+Macro-level F1: {}
+"""
+
 def train(model, loss_fn, optimizer, history, trainset, valset, config):
     """ Trains the model by optimizing with respect to the given loss
         function using the given optimizer.
@@ -91,14 +99,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
             process_batches(model, trainset, loss_fn, batch_size, num_workers, 
                             desc="train", optimizer=optimizer, is_training=True)
         if verbose:
-            tqdm.write(
-                """
-                Macro-level Accuracy: {}
-                Macro-level Precision: {}
-                Macro-level Recall: {}
-                Macro-level F1: {}
-                """
-                .format(
+            tqdm.write(PROGRESS_MSG.format(
                     train_results["accuracy"],
                     train_results["precision"],
                     train_results["recall"],
@@ -111,14 +112,7 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
             process_batches(model, valset, loss_fn, batch_size, num_workers, 
                             desc="val", optimizer=optimizer, is_training=False)
         if verbose:
-            tqdm.write(
-                """
-                Macro-level Accuracy: {}
-                Macro-level Precision: {}
-                Macro-level Recall: {}
-                Macro-level F1: {}
-                """
-                .format(
+            tqdm.write(PROGRESS_MSG.format(
                     val_results["accuracy"],
                     val_results["precision"],
                     val_results["recall"],
@@ -166,14 +160,7 @@ def evaluate(model, dataset, loss_fn, batch_size=64, num_workers=4, desc="eval")
     """
     results, cm = process_batches(model, dataset, loss_fn, batch_size, 
                                     num_workers, desc=desc)
-    print(
-        """
-        Macro-level Accuracy: {}
-        Macro-level Precision: {}
-        Macro-level Recall: {}
-        Macro-level F1: {}
-        """
-        .format(
+    print(PROGRESS_MSG.format(
             results["accuracy"],
             results["precision"],
             results["recall"],

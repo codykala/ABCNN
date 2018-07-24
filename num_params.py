@@ -6,9 +6,10 @@ import functools
 
 from setup import read_config
 from setup import setup_model
+from setup import setup_model_v2
 
-config = read_config("config.json")
-model = setup_model(config)
+config = read_config("config_v2.json")
+model = setup_model_v2(config)
 num_params = 0
 for name, weight in model.named_parameters():
     params_in_weight = functools.reduce(operator.mul, list(weight.size()), 1)
