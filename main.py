@@ -16,6 +16,7 @@ from utils import freeze_weights
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
+parser.add_argument("--config", default="config.json", help="path to the config file")
 parser.add_argument("--train", action="store_true", default=False, help="train a model")
 parser.add_argument("--eval", action="store_true", default=False, help="evaluate a model")
 parser.add_argument("--path", default=None, help="path to model checkpoint")
@@ -26,7 +27,7 @@ args = parser.parse_args()
 assert(args.train or args.eval)
 
 # Basic setup
-config = read_config("config.json")
+config = read_config(args.config)
 datasets, model = setup(config)
 loss_fn = nn.CrossEntropyLoss()
 optimizer = \
