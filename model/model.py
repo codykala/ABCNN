@@ -20,9 +20,10 @@ class Model(nn.Module):
         """ Initialize the ABCNN model layers.
 
             Args:
-                components: list of Components modules
-                    Contains the components defining the CNN. Can be
-                    either CNNLayer modules or Block modules.
+                embeddings: nn.Embedding Module
+                    The embeddings matrix.
+                layers: list of Layers modules
+                    Contains the Layers of the CNN.
                 use_all_layers: boolean
                     Specifies whether or not to foward the outputs of All-AP
                     layers applied to all non-final layers to form the final
@@ -34,14 +35,16 @@ class Model(nn.Module):
             Returns:
                 None
         """
-        super().__init__()    
+        super().__init__()   
+        # self.embeddings = embeddings
         self.layers = nn.ModuleList(layers)
         self.use_all_layers = use_all_layers
         self.fc = nn.Linear(final_size, 2)
         self.ap = AllAP()
-    
+
+
     def forward(self, inputs):
-        """ Computes the forwarfd pass over the network.
+        """ Computes the forward pass over the network.
 
             Args:
                 inputs: torch.Tensors of shape (batch_size, 2, max_length, embedding_size)
@@ -65,7 +68,7 @@ class Model(nn.Module):
         outputs2.append(a2)
 
         # Process input through blocks
-        for layer in self.block:
+        for layer in self.layers:
             x1, x2, a1, a2 = layer(x1, x2)
             outputs1.append(a1)
             outputs1.append(a2)

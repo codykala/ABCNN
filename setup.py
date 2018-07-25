@@ -208,6 +208,139 @@ def setup_dataset(examples, word_vectors, embeddings_size, max_length):
     return dataset, examples
 
 
+def setup_datasets_v2(datasets, embeddings_size, max_length):
+    """ Converts the examples from the datasets into a machine-readable format
+        useful for training.
+
+        To ensure that all words have a word embedding associated to them, we 
+        should have text from ALL datasets (note: this is NOT peeking at the 
+        dataset... this is just to prevent the model from crashing/complaining 
+        when it sees a word that is OOV.) OOV words are assigned random word 
+        embeddings.
+
+        Args:
+            datasets: dict of pd.DataFrame
+                The text we would like to convert to indices into the embedding
+                matrix.
+            word2index: dict
+                Contains the mapping from words to their indices in the
+                embedding matrix.
+            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
+                Contains the pre-trained word vectors, if available.
+            embeddings_size: int
+                The dimension of the word embeddings.
+            max_length: int
+                The maximum length of questions/sentences.
+
+        Returns:
+            index_mappings: dict of torch.LongTensors
+                The keys are the names of the datasets. The values are
+                LongTensors of shape (num_examples, 2, max_length).
+                Each example is represented as a LongTensor of indices
+                into the embedding matrix.
+            word2index: dict
+                Maps each word to an index of the embedding matrix.
+            index2word: dict
+                Maps each index of the embedding matrix to a word.
+    """
+    texts = dict()
+    word2index = {"<PAD>": 0}
+    index2word = {0: "<PAD>"}
+    question_cols = ["question1", "question2"]
+
+    # Process each dataset
+    for name, dataset in datasets.items():
+        
+        # Process texts
+        labels = []
+        indexed_examples = []
+        parsed_texts = []
+        num_examples = len(dataset)
+        for index, example in tqdm(dataset.iterrows(), total=num_examples):
+
+            # Process each question separately
+            index_map = []
+            processed_text = []
+            for column in question_col:
+
+                # Parse and clean the text
+                question = examples.at[index, column]
+                words = text_to_word_list(question)
+                words = remove_stop_words(words, word_vectors)
+
+                # Convert words to indices
+                indexes = []
+                for word in words:
+
+                    # Update word-index lookup if necessary
+                    if word not in word2index:
+                        word2index[word] = len(word2index)
+                        index2word[len(index2word)] = word
+                    
+                    # Add the word's index to the list
+                    indexes.append(word2index[word])
+
+                # Truncate if necessary
+                length = len(indexes) if len(indexes) < max_length else max_length
+                indexes = indexes[:length]
+                words = words[:length]
+
+                # Pad if necessary
+                if length < max_length:
+                    num_padding = max_length - length
+                    indexes.extends([0] * num_padding)
+                    words.extends(["<PAD>"] * num_padding)
+    
+                # Store parsed text and index tensors
+                index_map.append(indexes)
+                parsed_text.append(words)
+
+            # Store processed text and index tensor map and label
+            labels.append(example.at[index, "is_duplicate"])
+            index_maps.append(index_map)
+            parsed_texts.append(parsed_text)
+
+        # Save the processed result
+        index_map = torch.LongTensor(index_map)
+        labels = torch.LongTensor(labels)
+        dataset = torch.TensorDataset(index_map, labels)
+        datasets[name] = dataset
+        texts[name] = parsed_texts
+
+    return datasets, texts, word2index, index2word
+   
+
+def setup_embedding_matrix(word_vectors, word2index, embeddings_size):
+    """ Creates the embedding matrix using the given word embeddings and mapping
+        from words to indices.
+
+        Args:
+            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
+                The pre-trained word-vectors, if available.
+            word2index: dict
+                Maps words to indices in the embedding matrix.
+
+        Returns
+            embeddings: nn.Embedding
+                The embedding matrix.
+    """
+    # Sanity check
+    assert(word_vectors.size == embeddings_size)
+    embeddings = np.random.uniform(-0.01, 0.01, (len(word2index) + 1, embeddings_size))
+    embeddings[0] = 0   # Padding is just all 0s
+
+    # Replace random vectors with pre-trained vectors if available
+    for word, index in tqdm(word2index.items(), desc="embedding matrix"):
+        try:
+            embeddings[index] = word_vectors[word]
+        except (RuntimeError, KeyError):
+            pass
+
+    # Convert to nn.Embedding
+    embeddings = nn.Embedding.from_pretrained(embeddings)
+    return embeddings
+    
+
 def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
     """ Converts a list of texts (strings) into their feature maps.
 
