@@ -30,17 +30,17 @@ class BCNNBlock(nn.Module):
         self.dropout = nn.Dropout2d(p=dropout_rate)
 
     def forward(self, x1, x2):
-        """ Computes the forward pass over the BCNN Block.abs
+        """ Computes the forward pass over the BCNN Block.
             
             Args:
-                x1, x2: torch.FloatTensors of shape (batch_size, 1, max_length, input_size)
+                x1, x2: torch.Tensors of shape (batch_size, 1, max_length, input_size)
                     The inputs to the BCNN Block.
 
             Returns:
-                w1, w2: torch.FloatTensors of shape (batch_size, 1, max_length, output_size)
+                w1, w2: torch.Tensors of shape (batch_size, 1, max_length, output_size)
                     The outputs of the w-ap Average Pooling layer. These are passed to
                     the next Block.
-                a1, a2: torch.FloatTensors of shape (batch_size, output_size)
+                a1, a2: torch.Tensors of shape (batch_size, output_size)
                     The outputs of the all-ap Average Pooling layer. These are optionally
                     passed to the output layer.
         """

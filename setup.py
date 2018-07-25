@@ -48,6 +48,37 @@ def read_config(config_path):
         config = json.load(json_file)
         return config
 
+def setup_v2(config):
+    """ Handles all of the setup needed to run an ABCNN model.
+
+        Args:
+            config: dict
+                Contains the information needed to initialize the datasets
+                and model.
+
+        Returns:
+            datasets: dict of TensorDatasets
+                Contains the datasets to be used for training/evaluation.
+            model: Model
+                The instantiated model.
+    """
+    # Read in the relevant config info
+    data_paths = config["data_paths"]
+    embeddings_size = config["embeddings"]["size"]
+    max_length = config["model"]["max_length"]
+
+    # Setup the datasets
+    datasets = {name: pd.read_csv(data_path) for name, data_path in data_paths.items()}
+    datasets, texts, word2index = setup_datasets_v2(datasets, embeddings_size, max_length)
+
+    # Create embedding matrix
+    word_vectors = setup_word_vectors(config)
+    embeddings = setup_embedding_matrix_v2(word_vectors, word2index, embeddings_size)
+    
+    # Create the model
+    model = setup_model_v2(embeddings, config)
+    return datasets, model
+
 
 def setup(config):
     """ Handles all of the setup needed to run an ABCNN model.
@@ -80,7 +111,7 @@ def setup(config):
     return datasets, model
 
 
-def setup_model(config):
+def setup_model_v2(embeddings, config):
     """ Sets up the model for training/evaluation. The architecture here extends
         on the architecture introduced in the ABCNN paper by allowing for multiple
         convolutional layers with different window sizes (computed in parallel, not
@@ -114,7 +145,7 @@ def setup_model(config):
     final_size = 2 * sum(layer_sizes) if use_all_layer_outputs else 2 * layer_sizes[-1]
 
     # Put it all together
-    model = Model(layers, use_all_layer_outputs, final_size).float()
+    model = Model(embeddings, layers, use_all_layer_outputs, final_size).float()
     model = model.cuda() if USE_CUDA else model
     model.apply(weights_init)
     return model
@@ -245,7 +276,6 @@ def setup_datasets_v2(datasets, embeddings_size, max_length):
     """
     texts = dict()
     word2index = {"<PAD>": 0}
-    index2word = {0: "<PAD>"}
     question_cols = ["question1", "question2"]
 
     # Process each dataset
@@ -256,17 +286,17 @@ def setup_datasets_v2(datasets, embeddings_size, max_length):
         indexed_examples = []
         parsed_texts = []
         num_examples = len(dataset)
-        for index, example in tqdm(dataset.iterrows(), total=num_examples):
+        for index, example in tqdm(dataset.iterrows(), desc=name, total=num_examples):
 
             # Process each question separately
             index_map = []
-            processed_text = []
-            for column in question_col:
+            parsed_text = []
+            for column in question_cols:
 
                 # Parse and clean the text
-                question = examples.at[index, column]
+                question = example[column]
                 words = text_to_word_list(question)
-                words = remove_stop_words(words, word_vectors)
+                words = remove_stop_words(words)
 
                 # Convert words to indices
                 indexes = []
@@ -275,7 +305,6 @@ def setup_datasets_v2(datasets, embeddings_size, max_length):
                     # Update word-index lookup if necessary
                     if word not in word2index:
                         word2index[word] = len(word2index)
-                        index2word[len(index2word)] = word
                     
                     # Add the word's index to the list
                     indexes.append(word2index[word])
@@ -288,29 +317,29 @@ def setup_datasets_v2(datasets, embeddings_size, max_length):
                 # Pad if necessary
                 if length < max_length:
                     num_padding = max_length - length
-                    indexes.extends([0] * num_padding)
-                    words.extends(["<PAD>"] * num_padding)
+                    indexes.extend([0] * num_padding)
+                    words.extend(["<PAD>"] * num_padding)
     
                 # Store parsed text and index tensors
                 index_map.append(indexes)
                 parsed_text.append(words)
 
             # Store processed text and index tensor map and label
-            labels.append(example.at[index, "is_duplicate"])
-            index_maps.append(index_map)
+            labels.append(example["is_duplicate"])
+            indexed_examples.append(index_map)
             parsed_texts.append(parsed_text)
 
         # Save the processed result
-        index_map = torch.LongTensor(index_map)
         labels = torch.LongTensor(labels)
-        dataset = torch.TensorDataset(index_map, labels)
+        indexed_examples = torch.LongTensor(indexed_examples)
+        dataset = TensorDataset(indexed_examples, labels)
         datasets[name] = dataset
         texts[name] = parsed_texts
 
-    return datasets, texts, word2index, index2word
+    return datasets, texts, word2index
    
 
-def setup_embedding_matrix(word_vectors, word2index, embeddings_size):
+def setup_embedding_matrix_v2(word_vectors, word2index, embeddings_size):
     """ Creates the embedding matrix using the given word embeddings and mapping
         from words to indices.
 
@@ -325,19 +354,19 @@ def setup_embedding_matrix(word_vectors, word2index, embeddings_size):
                 The embedding matrix.
     """
     # Sanity check
-    assert(word_vectors.size == embeddings_size)
     embeddings = np.random.uniform(-0.01, 0.01, (len(word2index) + 1, embeddings_size))
     embeddings[0] = 0   # Padding is just all 0s
 
     # Replace random vectors with pre-trained vectors if available
-    for word, index in tqdm(word2index.items(), desc="embedding matrix"):
-        try:
-            embeddings[index] = word_vectors[word]
-        except (RuntimeError, KeyError):
-            pass
+    if word_vectors is not None:
+        for word, index in tqdm(word2index.items(), desc="embedding matrix"):
+            try:
+                embeddings[index] = word_vectors[word]
+            except (RuntimeError, KeyError):
+                pass
 
     # Convert to nn.Embedding
-    embeddings = nn.Embedding.from_pretrained(embeddings)
+    embeddings = nn.Embedding.from_pretrained(torch.from_numpy(embeddings))
     return embeddings
     
 
@@ -471,25 +500,19 @@ def text_to_word_list(text):
     return text
 
 
-def remove_stop_words(words, word_vectors):
+def remove_stop_words(words):
     """ Removes all of the stop words.
 
         Args:
             words: list of string
                 The words in the text.
-            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
-                The pre-trained word vectors. If word_vectors is a KeyedVectors
-                instance, then only words in its vocabulary can be used.
-                If word_vectors is a FastTextKeyedVectors instance, then OOV
-                words can potentially be generated on the fly using n-gram word
-                vectors. If word_vectors is None, then a random embedding is used.
         
         Returns:
             words: list of string
                 The words in the text with stop words removed.
     """
     stops = set(stopwords.words("english"))
-    return list(filter(lambda w: w not in stops or w in word_vectors.vocab, words))
+    return list(filter(lambda w: w not in stops, words))
 
 
 def setup_embedding_matrix(word2index, word_vectors, config):
