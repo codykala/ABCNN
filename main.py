@@ -8,7 +8,7 @@ import torch.optim as optim
 from collections import defaultdict
 
 from setup import read_config
-from setup import setup_v2
+from setup import setup
 from train import train
 from train import evaluate
 from utils import load_checkpoint
@@ -28,7 +28,7 @@ assert(args.train or args.eval)
 
 # Basic setup
 config = read_config(args.config)
-datasets, model = setup_v2(config)
+datasets, model = setup(config)
 loss_fn = nn.CrossEntropyLoss()
 optimizer = \
     optim.Adagrad(
