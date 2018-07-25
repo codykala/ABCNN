@@ -1,8 +1,14 @@
 {
+    "train_set": "quora_train",
+    "val_set": "quora_val",
+    "test_set": "query_test",
     "data_paths": {
-        "train": "data/quora/train.csv",
-        "val": "data/quora/val.csv",
-        "test": "data/quora/test.csv"
+        "quora_train": "data/quora/train.csv",
+        "quora_val": "data/quora/val.csv",
+        "quora_test": "data/quora/test.csv",
+        "query_train": "data/query/train.csv",
+        "query_val": "data/query/val.csv",
+        "query_test": "data/query/test.csv"
     },
     "embeddings": {
         "path": "embeddings/GoogleNews-vectors-negative300.bin.gz",
@@ -27,7 +33,9 @@
                     "match_score": "manhattan",
                     "share_weights": true,
                     "dropout_rate": 0.5
-                },
+                }
+            ],
+            [
                 {
                     "type": "abcnn2",
                     "input_size": 50,

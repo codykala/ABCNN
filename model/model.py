@@ -16,7 +16,7 @@ class Model(nn.Module):
         and then these outputs are stacked and fed into the next layer.
     """
 
-    def __init__(self, layers, use_all_layers, final_size):
+    def __init__(self, embeddings, layers, use_all_layers, final_size):
         """ Initialize the ABCNN model layers.
 
             Args:
@@ -36,7 +36,7 @@ class Model(nn.Module):
                 None
         """
         super().__init__()   
-        # self.embeddings = embeddings
+        self.embeddings = embeddings
         self.layers = nn.ModuleList(layers)
         self.use_all_layers = use_all_layers
         self.fc = nn.Linear(final_size, 2)
@@ -47,6 +47,7 @@ class Model(nn.Module):
         """ Computes the forward pass over the network.
 
             Args:
+                inputs: torch.LongTensors of shape (batch_size, 2, max_length)
                 inputs: torch.Tensors of shape (batch_size, 2, max_length, embedding_size)
                     The initial feature maps for a batch of question pairs.
 
@@ -59,8 +60,10 @@ class Model(nn.Module):
         outputs2 = []
 
         # Extract the initial sequences
-        x1 = inputs[:, 0, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embeddings_size)
-        x2 = inputs[:, 1, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embeddings_size)
+        # x1 = inputs[:, 0, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embeddings_size)
+        # x2 = inputs[:, 1, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embeddings_size)
+        x1 = self.embeddings(inputs[:, 0, :]).unsqueeze(1)
+        x2 = self.embeddings(inputs[:, 1, :]).unsqueeze(1)
 
         # Store all-ap outputs for input layer
         a1, a2 = self.ap(x1), self.ap(x2) # shapes (batch_size, embeddings_size)
