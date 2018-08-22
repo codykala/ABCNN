@@ -1,12 +1,12 @@
 # coding=utf-8
 
-import json
 import numpy as np
 import os
 import pandas as pd
 import re
 import torch
 import torch.nn as nn
+import yaml
 from gensim.models import KeyedVectors
 from gensim.models import FastText
 from nltk.corpus import stopwords
@@ -43,8 +43,8 @@ def read_config(config_path):
                 datasets and model. See "config.json" for configuration
                 details.
     """
-    with open(config_path) as json_file:
-        config = json.load(json_file)
+    with open(config_path, "r") as stream:
+        config = yaml.load(stream)
         return config
 
 

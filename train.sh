@@ -11,4 +11,4 @@
 
 python src/main.py \
 	--train \
-	--config /home/cody/abcnn_configs/abcnn3_config.json 
+	--config /home/cody/abcnn/configs/quora/abcnn1.yaml
