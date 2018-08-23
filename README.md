@@ -23,8 +23,8 @@ sudo apt-get install python3-tk
 ```
 
 In order to train the model, you will need to have some pre-trained 
-word embeddings (either word2vec or fasttext). You can use these commands
-to download these publicly available word embeddings:
+word embeddings (either word2vec or fasttext). If you're using a Linux machine, 
+you can use these commands to download these publicly available word embeddings:
 
 ## FastText Embeddings
 
@@ -78,7 +78,7 @@ val_set: string
 test_set: string
     The name of the file containing the test examples.
 data_paths: dict
-	Maps the names of each dataset to its filepath.
+    Maps the names of each dataset to its filepath.
 embeddings: dict
     Contains config settings for generating the emebdding matrix.
     The model can be trained using either word2vec or fasttext
@@ -88,9 +88,9 @@ embeddings: dict
 optim: dict
     Contains config settings for the optimizer. 
 model: dict
-	Contains config settings for the ABCNN model. Notably,
-	the model is defined via the config settings specified
-	under the "layers" key.
+    Contains config settings for the ABCNN model. Notably,
+    the model is defined via the config settings specified
+    under the "layers" key.
 train: dict  
     Contains config settings for the training harness.
 ```
