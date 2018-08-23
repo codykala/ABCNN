@@ -64,7 +64,7 @@ def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
     """ Converts a list of texts (strings) into their feature maps.
 
         Args:
-            texts: list of tuple of  string
+            texts: list of tuple of string
                 The text we would like to featurize in the format (question1, question2).
             word_vectors: KeyedVectors, FastTextKeyedVectors, or None
                 The pre-trained word vectors. If word_vectors is a KeyedVectors
@@ -78,7 +78,7 @@ def texts_to_features(pairs, word_vectors, embeddings_size, max_length):
                 The maximum length of questions/sequences.
 
         Returns:
-            feature_maps: torch.Tensor of shape (batch_size, max_length, embedding_size)
+            feature_maps: torch.Tensor of shape (num_examples, max_length, embedding_size)
                 The feature maps for each text.
             processed_texts: list of lists
                 Contains the processed text for each question. Stop words are removed

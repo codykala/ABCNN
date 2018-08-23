@@ -60,13 +60,12 @@ class Model(nn.Module):
         outputs2 = []
 
         # Extract the initial sequences
-        # x1 = inputs[:, 0, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embeddings_size)
-        # x2 = inputs[:, 1, :, :].unsqueeze(1) # shape (batch_size, 1, max_length, embeddings_size)
         x1 = self.embeddings(inputs[:, 0, :]).unsqueeze(1)
         x2 = self.embeddings(inputs[:, 1, :]).unsqueeze(1)
 
         # Store all-ap outputs for input layer
-        a1, a2 = self.ap(x1), self.ap(x2) # shapes (batch_size, embeddings_size)
+        a1 = self.ap(x1) 
+        a2 = self.ap(x2) # shapes (batch_size, embeddings_size)
         outputs1.append(a1)
         outputs2.append(a2)
 
