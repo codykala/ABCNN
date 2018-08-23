@@ -6,7 +6,7 @@ Xiang, and Zhou (arXiv link: `https://arxiv.org/pdf/1512.05193.pdf`).
 
 # Setup
 
-Firstr, create a virtual environment and install the required dependencies
+First, create a virtual environment and install the required dependencies
 from `requirements.txt`. Make sure the virtual environment uses `python3`.
 If you are using virtualenvwrapper, you can use the following commands:
 
@@ -28,25 +28,12 @@ you can use these commands to download these publicly available word embeddings:
 
 ## FastText Embeddings
 
-`wiki-news-300d-1M.vec.zip`: 1 million word vectors trained on Wikipedia 2017,
-UMBC webbase corpus and statmt.org news dataset (16B tokens):
+`wiki.en.bin`: Pre-trained word vectors trained on Wikipedia using fastText. These
+vectors in dimension 300 were obtained using the skip-gram model described in
+Bojanowski et al. (2016) with default parameters.
 
 ```
-wget https://s3-us-west-1.amazonaws.com/fasttext-vectors/wiki-news-300d-1M.vec.zip
-```
-
-`wiki-news-300d-1M-subword.vec.zip`: 1 million word vectors trained with subword 
-infomation on Wikipedia 2017, UMBC webbase corpus and statmt.org news dataset 
-(16B tokens).
-
-```
-wget https://s3-us-west-1.amazonaws.com/fasttext-vectors/wiki-news-300d-1M-subword.vec.zip
-```
-
-`crawl-300d-2M.vec.zip`: 2 million word vectors trained on Common Crawl (600B tokens).
-
-```
-wget https://s3-us-west-1.amazonaws.com/fasttext-vectors/crawl-300d-2M.vec.zip
+wget https://s3-us-west-1.amazonaws.com/fasttext-vectors/wiki.en.zip
 ```
 
 ## Word2Vec Embeddings
@@ -57,6 +44,11 @@ Google News dataset (100B tokens).
 ```
 wget https://s3.amazonaws.com/dl4j-distribution/GoogleNews-vectors-negative300.bin.gz
 ```
+
+Alternatively, you are welcome to use other word embeddings, but only word embeddings 
+saved in `word2vec` or `fasttext` formats are supported. Specifically, our code uses 
+`gensim` to load pre-trained word embeddings, so the embeddings file will need to 
+conform to `gensim`'s API.
 
 # Usage
 
