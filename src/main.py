@@ -16,11 +16,12 @@ from utils import freeze_weights
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("--config", default="config.json", help="path to the config file")
+parser.add_argument("config", type=str, help="path to the config file")
 parser.add_argument("--train", action="store_true", default=False, help="train a model")
 parser.add_argument("--eval", action="store_true", default=False, help="evaluate a model")
 parser.add_argument("--path", default=None, help="path to model checkpoint")
 parser.add_argument("--freeze", action="store_true", default=False, help="freeze the weights in the conv-pool layers.")
+parser.add_argument("--log_file", default=None, help="path to log file")
 args = parser.parse_args()
 
 # Sanity check command line arguments
@@ -42,10 +43,14 @@ history = defaultdict(list)
 if args.path is not None:
     print("Loading model from checkpoint...")
     state = load_checkpoint(args.path)
-    model_dict, optim_dict, history, epoch = state
+    pretrained_model_dict, optim_dict, history, _ = state
+    # Ignore embedding weights... these will change depending on which datasets
+    # are specified in the config file
+    pretrained_model_dict = {k: v for k, v in pretrained_model_dict.items() if k != "embeddings.weight"}
+    model_dict = model.state_dict()
+    model_dict.update(pretrained_model_dict)
     model.load_state_dict(model_dict)
     optimizer.load_state_dict(optim_dict)
-    config["train"]["start_epoch"] = epoch
     print("Success!")
 
 if args.freeze:
@@ -59,9 +64,10 @@ if args.train:
     train_config = config["train"]
     train(model, loss_fn, optimizer, history, trainset, valset, train_config)
 
-elif args.eval:
+if args.eval:
     print("Evaluating the model...")
     testset = datasets[config["test_set"]]
     batch_size = config["train"]["batch_size"]
     num_workers = config["train"]["num_workers"]
-    evaluate(model, testset, loss_fn, batch_size, num_workers)
+    evaluate(model, testset, loss_fn, batch_size, num_workers, log_file=args.log_file)
+    

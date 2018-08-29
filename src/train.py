@@ -9,6 +9,7 @@ from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
 from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -83,10 +84,16 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     num_workers = config.get("num_workers", 4)
     checkpoint_dir = config.get("checkpoint_dir", "checkpoints")
     verbose = config.get("verbose", False)
+    beta = config.get("beta", 0.8)
     gamma = config.get("gamma", 0.1)
+    scheduler_type = config.get("scheduler_type", "exponential")
 
     # Learning rate scheduler
-    scheduler = ExponentialLR(optimizer, gamma=gamma)
+    if scheduler_type == "exponential":
+        scheduler = ExponentialLR(optimizer, gamma=gamma)
+    elif scheduler_type == "linear":
+        lambda_func = lambda epoch: beta ** epoch
+        scheduler = LambdaLR(optimizer, lr_lambda=lambda_func)
 
     # Use the f1 score to determine best checkpoint
     best_val_f1 = 0 
@@ -156,12 +163,27 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     return model
 
 
-def evaluate(model, dataset, loss_fn, batch_size=64, num_workers=4, desc="eval"):
+def evaluate(model, 
+             dataset, 
+             loss_fn, 
+             batch_size=64, 
+             num_workers=4, 
+             desc="eval", 
+             log_file=None):
     """ Simple wrapper function for process_batches to evaluate the model 
         the given dataset. 
     """
-    results, cm = process_batches(model, dataset, loss_fn, batch_size, 
-                                    num_workers, desc=desc)
+    results, cm = \
+        process_batches(
+            model, 
+            dataset, 
+            loss_fn, 
+            batch_size,                        
+            num_workers,
+            desc=desc,
+            log_file=log_file
+        )
+
     print(
         PROGRESS_MSG.format(
             results["accuracy"],
@@ -173,8 +195,15 @@ def evaluate(model, dataset, loss_fn, batch_size=64, num_workers=4, desc="eval")
     return results, cm
 
 
-def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=None, 
-                    optimizer=None, is_training=False):
+def process_batches(model, 
+                    dataset, 
+                    loss_fn, 
+                    batch_size=64, 
+                    num_workers=4, 
+                    desc=None, 
+                    optimizer=None, 
+                    is_training=False, 
+                    log_file=None):
     """ Processes the examples in the dataset in batches. If the dataset is the
         training set, then the model weights will be updated.
 
@@ -225,8 +254,7 @@ def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=
 
     # Process batches
     dataloader = \
-        DataLoader(dataset, batch_size=batch_size, shuffle=True, 
-                    num_workers=num_workers)
+        DataLoader(dataset, batch_size=batch_size, num_workers=num_workers)
     for features, targets in tqdm(dataloader, desc=desc, position=1):
 
         # Load batch to GPU
@@ -272,7 +300,14 @@ def process_batches(model, dataset, loss_fn, batch_size=64, num_workers=4, desc=
         "recall": recall,
         "f1": f1,
     }
-    
+
+    # Write out results to log file
+    if log_file:
+        print("Writing predicted and actual labels to log file...")
+        with open(log_file, "w") as f:
+            for pred, act in zip(predicted, actual):
+                f.write("predicted: {}     actual: {}\n".format(pred, act))
+            
     if is_training:
         return model, results, cm
     return results, cm
