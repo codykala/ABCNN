@@ -2,9 +2,6 @@
 
 import torch
 
-# Use GPU if available, otherwise use CPU
-USE_CUDA = torch.cuda.is_available()
-
 def compute_attention_matrix(x1, x2, match_score):
     """ Computes the attention feature map for the batch of inputs x1 and x2.
 
@@ -29,7 +26,6 @@ def compute_attention_matrix(x1, x2, match_score):
     batch_size = x1.shape[0]
     max_length = x1.shape[2]
     A = torch.empty((batch_size, 1, max_length, max_length), dtype=torch.float)
-    A = A.cuda() if USE_CUDA else A # move to GPU
     for i in range(max_length):
         for j in range(max_length):
             b1 = x1[:, :, i, :]

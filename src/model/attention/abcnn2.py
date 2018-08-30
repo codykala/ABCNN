@@ -8,9 +8,6 @@ from model.attention.utils import cosine
 from model.attention.utils import euclidean
 from model.attention.utils import manhattan
 
-# Use GPU if available, otherwise use CPU
-USE_CUDA = torch.cuda.is_available()
-
 class ABCNN2Attention(nn.Module):
     """ Implements the attention mechanism for the ABCNN-2 model described 
         in this paper:
@@ -56,8 +53,6 @@ class ABCNN2Attention(nn.Module):
         output_size = x1.shape[3]
         w1 = torch.zeros((batch_size, 1, self.max_length, output_size))
         w2 = torch.zeros((batch_size, 1, self.max_length, output_size))
-        w1 = w1.cuda() if USE_CUDA else w1
-        w2 = w2.cuda() if USE_CUDA else w2
 
         # Compute the outputs
         for j in range(self.max_length):
