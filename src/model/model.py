@@ -43,16 +43,18 @@ class Model(nn.Module):
         self.ap = AllAP()
 
 
-    def forward(self, inputs):
-        """ Computes the forward pass over the network.
+    def extract_features(self, inputs):
+        """ Computes the feature vectors for each query-query pair in the
+            batch that would be passed along to the final fully connected
+            layer.
 
             Args:
                 inputs: torch.LongTensors of shape (batch_size, 2, max_length)
-                inputs: torch.Tensors of shape (batch_size, 2, max_length, embedding_size)
-                    The initial feature maps for a batch of question pairs.
+                    The initial tokenized inputs for a batch of question pairs.
 
             Returns:
-                out1, out2: torch.FloatTensors of shape (batch_size, 2)
+                outputs: torch.FloatTensors of shape (batch_size, output_size)
+                    The feature vectors for each pair of sequences.
                     The scores for each class for each pair of sequences.
         """
         # Collect all-ap outputs for each sequence
@@ -81,6 +83,20 @@ class Model(nn.Module):
         else:
             outputs = torch.cat([outputs1[-1], outputs2[-1]], dim=1)
 
-        # Compute scores for each class
-        logits = self.fc(outputs) # shape (batch_size, 2)
+        return outputs
+
+    def forward(self, inputs):
+        """ Computes the forward pass over the network.
+
+            Args:
+                inputs: torch.LongTensors of shape (batch_size, 2, max_length)
+                    The initial tokenized inputs for a batch of question pairs.
+
+            Returns:
+                outputs: torch.FloatTensor of shape (batch_size, 2)
+                    The scores for each class for each pair of sequences.
+        """
+        outputs = self.extract_features(inputs)
+        logits = self.fc(outputs)
         return logits
+
