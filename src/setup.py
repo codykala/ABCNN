@@ -53,7 +53,7 @@ def read_config(config_path):
         return config
 
 
-def setup(config, get_features_and_labels=False):
+def setup(config):
     """ Handles all of the setup needed to run an ABCNN model.
 
         Args:
@@ -72,6 +72,8 @@ def setup(config, get_features_and_labels=False):
                 labels.
             model: Model
                 The instantiated model.
+            optimizer: optimizer
+                The optimization algorithm to use for training.
     """
     features, labels, word2index = setup_datasets(config)
     embeddings = setup_embeddings(config, word2index)
@@ -179,7 +181,7 @@ def setup_datasets(config):
     """
     word2index = {"<PAD>": 0}
     question_cols = ["question1", "question2"]
-    features = {} # Contains the featurized examples for each dataset
+    examples = {} # Contains the featurized examples for each dataset
     labels = {} # Contains the labels for each dataset
     texts = {} # Contains the parsed text for each dataset
 
@@ -239,10 +241,10 @@ def setup_datasets(config):
 
         # Save the processed result
         labels[name] = torch.LongTensor(classes)
-        features[name] = torch.LongTensor(indexed_examples)
+        examples[name] = torch.LongTensor(indexed_examples)
         texts[name] = parsed_texts
 
-    return features, labels, word2index
+    return examples, labels, word2index
 
 
 def setup_embeddings(config, word2index):

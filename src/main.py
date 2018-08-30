@@ -34,31 +34,25 @@ assert(args.train or args.eval)
 # Basic setup
 config = read_config(args.config)
 features, labels, model = setup(config)
-model = model.cuda() if USE_CUDA else model
 datasets = {
-    name: TensorDataset(features[name], labels[name]) for name in features
+    name: TensorDataset(features[name], labels[name]) 
+    for name in features
 }
 loss_fn = nn.CrossEntropyLoss()
-optimizer = \
-    optim.Adagrad(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=config["optim"]["lr"],
-        weight_decay=config["optim"]["weight_decay"]
-    )
 history = defaultdict(list)
 
 # Load trained model if specified
 if args.path is not None:
     print("Loading model from checkpoint...")
     state = load_checkpoint(args.path)
-    pretrained_model_dict, optim_dict, history, _ = state
-    # Ignore embedding weights... these will change depending on which datasets
-    # are specified in the config file
-    pretrained_model_dict = {k: v for k, v in pretrained_model_dict.items() if k != "embeddings.weight"}
+    pretrained_model_dict, _, history, _ = state
+    pretrained_model_dict = {
+        k: v for k, v in pretrained_model_dict.items() 
+        if k != "embeddings.weight"
+    }
     model_dict = model.state_dict()
     model_dict.update(pretrained_model_dict)
     model.load_state_dict(model_dict)
-    optimizer.load_state_dict(optim_dict)
     print("Success!")
 
 if args.freeze:
@@ -70,7 +64,7 @@ if args.train:
     trainset = datasets[config["train_set"]]
     valset = datasets[config["val_set"]]
     train_config = config["train"]
-    train(model, loss_fn, optimizer, history, trainset, valset, train_config)
+    train(model, loss_fn, history, trainset, valset, train_config)
 
 if args.eval:
     print("Evaluating the model...")

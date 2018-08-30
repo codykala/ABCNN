@@ -48,7 +48,14 @@ def save_checkpoint(model, optimizer, history, epoch, filepath):
         Returns:
             None
     """
-    state = (model.state_dict(), optimizer.state_dict(), history, epoch)
+    # Move everything to CPU so model can be loaded into CPU or
+    # GPU next time
+    state = (
+        model.cpu().state_dict(),
+        optimizer.cpu().state_dict(),
+        history,
+        epoch
+    )
     torch.save(state, filepath)
 
 

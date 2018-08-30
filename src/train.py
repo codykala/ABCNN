@@ -3,6 +3,7 @@
 import numpy as np
 import os
 import torch
+import torch.optim as optim
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
@@ -27,7 +28,7 @@ Macro-level recall: {}
 Macro-level F1: {}
 """
 
-def train(model, loss_fn, optimizer, history, trainset, valset, config):
+def train(model, loss_fn, history, trainset, valset, config):
     """ Trains the model by optimizing with respect to the given loss
         function using the given optimizer.
 
@@ -36,8 +37,6 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
                 Defines the model.
             loss_fn: torch.nn.Module 
                 Defines the loss function.
-            optimizer: torch.optim.optimizer 
-                Defines the optimizer.
             history: dict
                 Contains histories of desired run metrics.
             trainset: torch.utils.data.Dataset 
@@ -87,6 +86,19 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
     beta = config.get("beta", 0.8)
     gamma = config.get("gamma", 0.1)
     scheduler_type = config.get("scheduler_type", "exponential")
+    lr = config.get("lr", 0.005)
+    weight_decay = config.get("weight_decay", 0.0005)
+
+    # Move model to GPU if necessary
+    # Construct optimizer
+    model = model.cuda() if USE_CUDA else model
+    optimizer = \
+        optim.Adagrad(
+            filter(
+                lambda p: p.requires_grad, model.parameters()
+            ),
+            lr=lr, weight_decay=weight_decay
+        )
 
     # Learning rate scheduler
     if scheduler_type == "exponential":
@@ -160,7 +172,8 @@ def train(model, loss_fn, optimizer, history, trainset, valset, config):
                 tqdm.write("Generating plots...")
             generate_plots(history, checkpoint_dir)
 
-    return model
+    # Move model back to CPU
+    return model.cpu()
 
 
 def evaluate(model, 
@@ -173,6 +186,9 @@ def evaluate(model,
     """ Simple wrapper function for process_batches to evaluate the model 
         the given dataset. 
     """
+    # Move model to GPU if necessary
+    model = model.cuda() if USE_CUDA else model
+
     results, cm = \
         process_batches(
             model, 
@@ -240,10 +256,7 @@ def process_batches(model,
                 The confusion matrix for the model on the dataset.
     """
     # Switch between training and eval mode
-    if is_training:
-        model = model.train()
-    else:
-        model = model.eval()
+    model = model.train() if is_training else model.eval()
     
     # Track loss across all batches
     total_loss = 0
@@ -306,7 +319,7 @@ def process_batches(model,
         print("Writing predicted and actual labels to log file...")
         with open(log_file, "w") as f:
             for pred, act in zip(predicted, actual):
-                f.write("predicted: {}     actual: {}\n".format(pred, act))
+                f.write("predicted: {}\tactual: {}\n".format(pred, act))
             
     if is_training:
         return model, results, cm
