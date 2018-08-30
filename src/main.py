@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from collections import defaultdict
+from torch.utils.data import TensorDataset
 
 from setup import read_config
 from setup import setup
@@ -13,6 +14,9 @@ from train import train
 from train import evaluate
 from utils import load_checkpoint
 from utils import freeze_weights
+
+# Use GPU if available
+USE_CUDA = torch.cuda.is_available()
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -29,7 +33,11 @@ assert(args.train or args.eval)
 
 # Basic setup
 config = read_config(args.config)
-datasets, model = setup(config)
+features, labels, model = setup(config)
+model = model.cuda() if USE_CUDA else model
+datasets = {
+    name: TensorDataset(features[name], labels[name]) for name in features
+}
 loss_fn = nn.CrossEntropyLoss()
 optimizer = \
     optim.Adagrad(

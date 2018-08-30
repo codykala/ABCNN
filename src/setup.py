@@ -10,7 +10,6 @@ import yaml
 from gensim.models import KeyedVectors
 from gensim.models import FastText
 from nltk.corpus import stopwords
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from model.attention.abcnn1 import ABCNN1Attention
@@ -26,8 +25,14 @@ from model.pooling.allap import AllAP
 from model.pooling.widthap import WidthAP
 from process import setup_dataset
 
-# Use GPU if available, otherwise use CPU
-USE_CUDA = torch.cuda.is_available()
+class EmbeddingFormatError(Exception):
+    """ Raised when an unrecognized embedding format is specified. """
+    pass
+
+
+class BlockTypeError(Exception):
+    """ Raised when an unrecognized CNN block type is specified. """
+    pass
 
 
 def read_config(config_path):
@@ -48,7 +53,7 @@ def read_config(config_path):
         return config
 
 
-def setup(config):
+def setup(config, get_features_and_labels=False):
     """ Handles all of the setup needed to run an ABCNN model.
 
         Args:
@@ -57,30 +62,24 @@ def setup(config):
                 and model.
 
         Returns:
-            datasets: dict of TensorDatasets
-                Contains the datasets to be used for training/evaluation.
+            features: dict
+                Contains the feature maps for the query-query pairs in each
+                dataset. The keys are the names of the datasets and the values
+                are the Tensors storing the feature maps.
+            labels: dict
+                Contains the labels for the query-query pairs in each dataset.
+                The keys are the names of the datasetsa nd the values are the
+                labels.
             model: Model
                 The instantiated model.
     """
-    # Read in the relevant config info
-    data_paths = config["data_paths"]
-    embeddings_size = config["embeddings"]["size"]
-    max_length = config["model"]["max_length"]
-
-    # Setup the datasets
-    datasets = {name: pd.read_csv(data_path) for name, data_path in data_paths.items()}
-    datasets, texts, word2index = setup_datasets(datasets, embeddings_size, max_length)
-
-    # Create embedding matrix
-    word_vectors = setup_word_vectors(config)
-    embeddings = setup_embedding_matrix(word_vectors, word2index, embeddings_size)
-    
-    # Create the model
-    model = setup_model(embeddings, config)
-    return datasets, model
+    features, labels, word2index = setup_datasets(config)
+    embeddings = setup_embeddings(config, word2index)
+    model = setup_model(config, embeddings)
+    return features, labels, model
 
 
-def setup_model(embeddings, config):
+def setup_model(config, embeddings):
     """ Sets up the model for training/evaluation. The architecture here extends
         on the architecture introduced in the ABCNN paper by allowing for multiple
         convolutional layers with different window sizes (computed in parallel, not
@@ -89,20 +88,22 @@ def setup_model(embeddings, config):
         Args:
             config: dict
                 Contains the information needed to setup the model.
+            embeddings: nn.Embedding
+                The embedding matrix for the model.
 
         Returns:
-            model: ModelV2 module
+            model: Model
                 The instantiated model.
     """
     print("Creating the ABCNN model...")
 
-    # Get relevant parameters
+    # Create the layers
     embeddings_size = config["embeddings"]["size"]
     max_length = config["model"]["max_length"]
     layer_configs = config["model"]["layers"]
     use_all_layer_outputs = config["model"]["use_all_layer_outputs"]
-
-    # Create the layers
+    
+    # Initialize the layers
     layers = []
     layer_sizes = [embeddings_size]
     for layer_config in layer_configs:
@@ -115,7 +116,6 @@ def setup_model(embeddings, config):
 
     # Put it all together
     model = Model(embeddings, layers, use_all_layer_outputs, final_size).float()
-    model = model.cuda() if USE_CUDA else model
     model.apply(weights_init)
     return model
 
@@ -141,24 +141,21 @@ def setup_word_vectors(config):
     embeddings_path = config["embeddings"]["path"]
     embeddings_format = config["embeddings"]["format"]
     is_binary = config["embeddings"]["is_binary"]
-   
-    # Load pre-trained word embeddings
-    word_vectors = None
-    if embeddings_format == "word2vec":
-        if os.path.isfile(embeddings_path):
+ 
+    # Load pre-trained word embeddings, if possible
+    if os.path.isfile(embeddings_path):
+        if embeddings_format == "word2vec":
             print("Loading Word2Vec word vectors from: {}".format(embeddings_path))
-            word_vectors = KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
-    elif embeddings_format == "fasttext":
-        if os.path.isfile(embeddings_path):
+            return KeyedVectors.load_word2vec_format(embeddings_path, binary=is_binary)
+        elif embeddings_format == "fasttext":
             print("Loading FastText word vectors from: {}".format(embeddings_path))
-            embeddings_model = FastText.load_fasttext_format(embeddings_path)
-            word_vectors = embeddings_model.wv 
-    else:
-        raise Exception("Unsupported type. Must be one of 'word2vec' or 'fasttext'.")
-    return word_vectors
+            return FastText.load_fasttext_format(embeddings_path).wv
+        else:
+            raise EmbeddingsFormatError
+    return None
 
 
-def setup_datasets(datasets, embeddings_size, max_length):
+def setup_datasets(config):
     """ Converts the examples from the datasets into a machine-readable format
         useful for training.
 
@@ -169,39 +166,31 @@ def setup_datasets(datasets, embeddings_size, max_length):
         embeddings.
 
         Args:
-            datasets: dict of pd.DataFrame
-                The text we would like to convert to indices into the embedding
-                matrix.
-            word2index: dict
-                Contains the mapping from words to their indices in the
-                embedding matrix.
-            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
-                Contains the pre-trained word vectors, if available.
-            embeddings_size: int
-                The dimension of the word embeddings.
-            max_length: int
-                The maximum length of questions/sentences.
+            config: dict
+                Contains the information needed to initialize the datasets.
 
         Returns:
-            index_mappings: dict of torch.LongTensors
-                The keys are the names of the datasets. The values are
-                LongTensors of shape (num_examples, 2, max_length).
-                Each example is represented as a LongTensor of indices
-                into the embedding matrix.
-            word2index: dict
-                Maps each word to an index of the embedding matrix.
-            index2word: dict
-                Maps each index of the embedding matrix to a word.
+            features: dict of string to LongTensor
+                Maps each dataset name to its tokenized examples.
+            labels: dict of string to LongTensor
+                Maps each dataset name to its labels.
+            word2index: dict of string to int
+                Maps each word to a unique integer ID.
     """
-    texts = dict()
     word2index = {"<PAD>": 0}
     question_cols = ["question1", "question2"]
+    features = {} # Contains the featurized examples for each dataset
+    labels = {} # Contains the labels for each dataset
+    texts = {} # Contains the parsed text for each dataset
 
     # Process each dataset
+    max_length = config["model"]["max_length"]
+    data_paths = config["data_paths"]
+    datasets = {name: pd.read_csv(path) for name, path in data_paths.items()}
     for name, dataset in datasets.items():
         
         # Process texts
-        labels = []
+        classes = []
         indexed_examples = []
         parsed_texts = []
         num_examples = len(dataset)
@@ -229,7 +218,7 @@ def setup_datasets(datasets, embeddings_size, max_length):
                     indexes.append(word2index[word])
 
                 # Truncate if necessary
-                length = len(indexes) if len(indexes) < max_length else max_length
+                length = min(len(indexes), max_length)
                 indexes = indexes[:length]
                 words = words[:length]
 
@@ -244,27 +233,25 @@ def setup_datasets(datasets, embeddings_size, max_length):
                 parsed_text.append(words)
 
             # Store processed text and index tensor map and label
-            labels.append(example["is_duplicate"])
+            classes.append(example["is_duplicate"])
             indexed_examples.append(index_map)
             parsed_texts.append(parsed_text)
 
         # Save the processed result
-        labels = torch.LongTensor(labels)
-        indexed_examples = torch.LongTensor(indexed_examples)
-        dataset = TensorDataset(indexed_examples, labels)
-        datasets[name] = dataset
+        labels[name] = torch.LongTensor(classes)
+        features[name] = torch.LongTensor(indexed_examples)
         texts[name] = parsed_texts
 
-    return datasets, texts, word2index
-   
+    return features, labels, word2index
 
-def setup_embedding_matrix(word_vectors, word2index, embeddings_size):
+
+def setup_embeddings(config, word2index):
     """ Creates the embedding matrix using the given word embeddings and mapping
         from words to indices.
 
         Args:
-            word_vectors: KeyedVectors, FastTextKeyedVectors, or None
-                The pre-trained word-vectors, if available.
+            config: dict
+                Contains the information needed to initialize the embeddings.
             word2index: dict
                 Maps words to indices in the embedding matrix.
 
@@ -272,17 +259,17 @@ def setup_embedding_matrix(word_vectors, word2index, embeddings_size):
             embeddings: nn.Embedding
                 The embedding matrix.
     """
-    # Sanity check
+    # Initialize random word embeddings
+    embeddings_size = config["embeddings"]["size"]
     embeddings = np.random.uniform(-0.01, 0.01, (len(word2index) + 1, embeddings_size))
     embeddings[0] = 0   # Padding is just all 0s
 
     # Replace random vectors with pre-trained vectors if available
-    if word_vectors is not None:
+    word_vectors = setup_word_vectors(config)
+    if word_vectors:
         for word, index in tqdm(word2index.items(), desc="embedding matrix"):
-            try:
+            if word in word_vectors:
                 embeddings[index] = word_vectors[word]
-            except (RuntimeError, KeyError):
-                pass
 
     # Convert to nn.Embedding
     embeddings = nn.Embedding.from_pretrained(torch.from_numpy(embeddings))
@@ -424,7 +411,7 @@ def setup_block(max_length, block_config):
         block = ABCNN3Block(attn1, conv, attn2, dropout_rate=dropout_rate)
 
     else:
-        raise Exception("Unsupported type. Must be one of 'bcnn', 'abcnn1', 'abcnn2', 'abcnn3'.")
+        raise BlockTypeError
 
     return block, output_size    
 
