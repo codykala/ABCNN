@@ -7,6 +7,41 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend("agg")  
 
+def abcnn_model_loader(filepath, model, optimizer):
+    """ Helper function to load a pre-trained ABCNN model from a model
+        checkpoint file.
+
+        Args:
+            filepath: string
+                The path to the ABCNN model checkpoint file.
+            model: ABCNN model
+                An instance of the ABCNN model.
+            optimizer: optim.Optimizer
+                An instance of the optimizer.
+
+        Returns:
+            model: ABCNN model
+                The pre-trained ABCNN model.
+            optimizer: optim.Optimizer
+                The optimizer used to train the ABCNN model.
+    """
+    state = load_checkpoint(filepath)
+    new_model_dict, new_optim_dict, _, _ = state
+    
+    # Overwrite the model state
+    new_model_dict = {
+        k: v for k, v in new_model_dict.items()
+        if k != "embeddings.weight" # ignore embedding layer
+    }
+    model_dict = model.state_dict()
+    model_dict.update(new_model_dict)
+    model.load_state_dict(model_dict)
+
+    # Overwrite the optimizer state
+    optimizer.load_state_dict(new_optim_dict)
+    
+    return model, optimizer
+
 
 def freeze_weights(pretrained_model):
     """ Creates a copy of the pre-trained model with its conv-pool layer
@@ -51,8 +86,8 @@ def save_checkpoint(model, optimizer, history, epoch, filepath):
     # Move everything to CPU so model can be loaded into CPU or
     # GPU next time
     state = (
-        model.cpu().state_dict(),
-        optimizer.cpu().state_dict(),
+        model.state_dict(),
+        optimizer.state_dict(),
         history,
         epoch
     )

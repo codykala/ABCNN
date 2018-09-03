@@ -1,0 +1,39 @@
+embed_config:
+    path: /home/cody/abcnn/embeddings/fasttext/tickets/word_vector_from_tickets_skipgram_dim300_subword_min2_max6.bin
+    format: fasttext
+    is_binary: true
+model_config:
+    embedding_size: 300
+    max_length: 20
+    use_all_layer_outputs: true
+    layers:
+        - - type: abcnn3
+            input_size: 300
+            output_size: 50
+            width: 3
+            match_score: manhattan
+            share_weights: true
+            dropout_rate: 0
+          - type: abcnn3
+            input_size: 50
+            output_size: 50
+            width: 3
+            match_score: manhattan
+            share_weights: true
+            dropout_rate: 0 
+optim_config:
+    lr: 0.005
+    weight_decay: 0.0005
+sched_config:
+    beta: 0.8
+    gamma: 0.5
+    type: exponential
+train_config:
+    batch_size: 20
+    num_epochs: 20
+    log_every: 5
+    num_workers: 4
+    checkpoint_dir: TODO
+    verbose: False
+    device: "cuda:0"
+ 
