@@ -10,8 +10,6 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from string import Template
 from torch.utils.data import DataLoader
-from tqdm import tqdm
-from tqdm import trange
 
 import trainer.utils
 
@@ -64,6 +62,14 @@ class MulticlassClassifierTrainer(object):
         self._best_model = None
         self._model = None
         self._history = None
+
+        # Hacky way to get tqdm to work in the shell and in jupyter
+        if config["environment"] == "script":
+            from tqdm import tqdm
+            from tqdm import trange
+        if config["environment"] == "jupyter":
+            from tqdm import tqdm_notebook as tqdm
+            from tqdm import tnrange as trange
 
         # Store train configuration attributes directly for easy access
         for attr, val in config.items():
