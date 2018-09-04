@@ -41,7 +41,7 @@ class ABCNN1Attention(nn.Module):
         W2 = nn.Parameter(torch.Tensor(max_length, input_size))
         self.W1 = W if share_weights else W1
         self.W2 = W if share_weights else W2
-        
+       
         # Choose match-score function
         functions = {
             "cosine": cosine,
@@ -64,10 +64,11 @@ class ABCNN1Attention(nn.Module):
         """
         # Get attention matrix and its transpose
         A = compute_attention_matrix(x1, x2, self.match_score)
+        A = A.cuda() if self.W1.is_cuda else A
         A_t = A.permute(0, 1, 3, 2)
 
         # Compute attention feature maps
-        a1 = torch.matmul(A, self.W1) 
+        a1 = torch.matmul(A, self.W1)
         a2 = torch.matmul(A_t, self.W2)
 
         # Stack attention feature maps with inputs

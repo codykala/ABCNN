@@ -2,74 +2,64 @@
 
 import argparse
 import os
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from collections import defaultdict
 from torch.utils.data import TensorDataset
 
+from trainer.factories import loss_fn_factory
+from trainer.factories import optimizer_factory
+from trainer.factories import scheduler_factory
+from trainer.multiclass_classifier_trainer import MulticlassClassifierTrainer
+from trainer.utils import move_to_device
 from setup import read_config
 from setup import setup
-from train import train
-from train import evaluate
-from utils import load_checkpoint
-from utils import freeze_weights
-
-# Use GPU if available
-USE_CUDA = torch.cuda.is_available()
+from utils import abcnn_model_loader
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("config", type=str, help="path to the config file")
-parser.add_argument("--train", action="store_true", default=False, help="train a model")
-parser.add_argument("--eval", action="store_true", default=False, help="evaluate a model")
-parser.add_argument("--path", default=None, help="path to model checkpoint")
-parser.add_argument("--freeze", action="store_true", default=False, help="freeze the weights in the conv-pool layers.")
-parser.add_argument("--log_file", default=None, help="path to log file")
+parser.add_argument("config_path", type=str, 
+    help="path to the config file")
+parser.add_argument("trainset", type=str, 
+    help="the name of the dataset (key in data_paths) to use for training.")
+parser.add_argument("valset", type=str, 
+    help="the name of the dataset (key in data_paths) to use for validation.")
+parser.add_argument("testset", type=str, 
+    help="the name of the dataset (key in data_paths) to use for testing.")
+parser.add_argument("-l", "--load", type=str, default=None, 
+    help="load a pre-trained model from a checkpoint file.")
+parser.add_argument("-t", "--train", action="store_true", default=False, 
+    help="train a model")
+parser.add_argument("-p", "--predict", action="store_true", default=False, 
+    help="evaluate a model")
 args = parser.parse_args()
 
 # Sanity check command line arguments
-assert(args.train or args.eval)
+assert(os.path.isfile(args.config_path))
+assert(args.load is None or os.path.isfile(args.load))
+assert(args.train or args.predict)
 
-# Basic setup
-config = read_config(args.config)
-features, labels, model = setup(config)
+# Initial setup
+config = read_config(args.config_path)
+features, labels, model = setup(config["model"])
+model = move_to_device(config["trainer"]["device"], model) # model needs to be on correct device BEFORE optimizer is initialized
 datasets = {
-    name: TensorDataset(features[name], labels[name]) 
+    name: TensorDataset(features[name], labels[name])
     for name in features
 }
-loss_fn = nn.CrossEntropyLoss()
-history = defaultdict(list)
+loss_fn = loss_fn_factory(config["loss_fn"])
+optimizer = optimizer_factory(config["optimizer"], model.parameters())
+scheduler = scheduler_factory(config["scheduler"], optimizer)
+trainer = MulticlassClassifierTrainer(config["trainer"])
 
-# Load trained model if specified
-if args.path is not None:
-    print("Loading model from checkpoint...")
-    state = load_checkpoint(args.path)
-    pretrained_model_dict, _, history, _ = state
-    pretrained_model_dict = {
-        k: v for k, v in pretrained_model_dict.items() 
-        if k != "embeddings.weight"
-    }
-    model_dict = model.state_dict()
-    model_dict.update(pretrained_model_dict)
-    model.load_state_dict(model_dict)
-    print("Success!")
+# Load a pre-trained model
+if args.load:
+    model, optimizer = abcnn_model_loader(args.load, model, optimizer)
 
-if args.freeze:
-    print("Freezing weights of pre-trained model...")
-    model = freeze_weights(model)
-
+# Train the model
 if args.train:
-    print("Training the model...")
-    trainset = datasets[config["train_set"]]
-    valset = datasets[config["val_set"]]
-    train_config = config["train"]
-    train(model, loss_fn, history, trainset, valset, train_config)
+    trainset = datasets[args.trainset]
+    valset = datasets[args.valset] if args.valset else None
+    trainer.train(loss_fn, model, optimizer, trainset, scheduler=scheduler, valset=valset)
 
-if args.eval:
-    print("Evaluating the model...")
-    testset = datasets[config["test_set"]]
-    batch_size = config["train"]["batch_size"]
-    num_workers = config["train"]["num_workers"]
-    evaluate(model, testset, loss_fn, batch_size, num_workers, log_file=args.log_file)
-    
+# Make predictions
+if args.predict:
+    testset = datasets[args.testset]
+    trainer.predict(testset)

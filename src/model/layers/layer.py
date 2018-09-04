@@ -17,17 +17,13 @@ class CNNLayer(nn.Module):
         the network.
     """
 
-    def __init__(self, blocks, dropout_rate=0.5):
+    def __init__(self, blocks):
         """ Initializes the CNNLayer.
 
             Args:
                 blocks: list of Block modules
                     Contains Block modules with different window sizes and 
                     pooling widths.
-                dropout_rate: float
-                    The probability that individual neurons are dropped out 
-                    from the network. Must be a float between 0 and 1. By 
-                    default, this value is 0.5.
 
             Returns:
                 None
@@ -36,13 +32,12 @@ class CNNLayer(nn.Module):
         self.blocks = nn.ModuleList(blocks)
         self.ap = AllAP()
         
-
     def forward(self, x1, x2):
-        """ Computes the forward pass over the BCNN Layer.
+        """ Computes the forward pass over the CNN Layer.
             
             Args:
                 x1, x2: torch.FloatTensors of shape (batch_size, 1, max_length, input_size)
-                    The inputs to the BCNN Block.
+                    The inputs to the CNN Block.
 
             Returns:
                 w1, w2: torch.FloatTensors of shape (batch_size, 1, max_length, output_size)

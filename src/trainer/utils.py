@@ -7,64 +7,38 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend("agg")  
 
-def abcnn_model_loader(filepath, model, optimizer):
-    """ Helper function to load a pre-trained ABCNN model from a model
-        checkpoint file.
+def move_to_device(device, *tensors):
+    """ Moves the given modules / tensors to the appropriate device.
+
+        If a device was specified in the training configuration, then
+        tensors / modules will be moved to that device. Otherwise, 
+        tensors / modules will be moved to any available GPUs. If no
+        configured GPUs are available, then tensors / modules will remain
+        on the CPU.
 
         Args:
-            filepath: string
-                The path to the ABCNN model checkpoint file.
-            model: ABCNN model
-                An instance of the ABCNN model.
-            optimizer: optim.Optimizer
-                An instance of the optimizer.
-
+            tensors: list of tensors / modules
+                Contains the tensors / modules we would like to move.
+               
         Returns:
-            model: ABCNN model
-                The pre-trained ABCNN model.
-            optimizer: optim.Optimizer
-                The optimizer used to train the ABCNN model.
+            tensors: list of tensors / modules
+                Contains the tensors / modules moved to the proper device.
+                If only tensor was given as input, then that single tensor
+                is returned.
     """
-    state = load_checkpoint(filepath)
-    new_model_dict, new_optim_dict, _, _ = state
-    
-    # Overwrite the model state
-    new_model_dict = {
-        k: v for k, v in new_model_dict.items()
-        if k != "embeddings.weight" # ignore embedding layer
-    }
-    model_dict = model.state_dict()
-    model_dict.update(new_model_dict)
-    model.load_state_dict(model_dict)
+    if device:
+        if "cuda" in device:
+            torch.cuda.empty_cache()
+        tensors = list(map(lambda t: t.to(device=device), tensors))
+    elif torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        tensors = list(map(lambda t: t.cuda(), tensors))
+    else:
+        tensors = list(map(lambda t: t.cpu(), tensors))
 
-    # Overwrite the optimizer state
-    optimizer.load_state_dict(new_optim_dict)
-    
-    return model, optimizer
+    return tensors[0] if len(tensors) == 1 else tensors
 
-
-def freeze_weights(pretrained_model):
-    """ Creates a copy of the pre-trained model with its conv-pool layer
-        weights frozen. This allow us to learn only the weights in the
-        fully connected layer.
-
-        Args:
-            pretrained_model: Model module
-                The pre-trained model we want to use.
-
-        Returns:
-            model: Model module
-                The model we want to train. The weights for its conv-pool
-                layers are identical to the pre-trained model's weights.
-    """
-    model = copy.deepcopy(pretrained_model)
-    for layer in model.layers:
-        for param in layer.parameters():
-            param.requires_grad = False
-    return model
-
-
-def save_checkpoint(model, optimizer, history, epoch, filepath):
+def save_checkpoint(model, optimizer, history, filepath):
     """ Saves the state of the model to a pickle file so that it can continue 
         to be trained at a later time.
 
@@ -75,8 +49,6 @@ def save_checkpoint(model, optimizer, history, epoch, filepath):
                 Defines the optimizer.
             history: dict
                 Contains histories of desired run metrics.
-            epoch: int
-                The current epoch number.
             filepath
                 The path where the checkpoint file will be saved.
         
@@ -89,16 +61,15 @@ def save_checkpoint(model, optimizer, history, epoch, filepath):
         model.state_dict(),
         optimizer.state_dict(),
         history,
-        epoch
     )
     torch.save(state, filepath)
 
 
-def load_checkpoint(filename, map_location=None):
+def load_checkpoint(filepath, map_location=None):
     """ Loads a model from a pickled checkpoint file.
 
         Args:
-            filename: string
+            filepath: string
                 The path to the checkpoint file.
             map_location: string or callable
                 Specifies where the loaded tensors should be stored.
@@ -117,7 +88,7 @@ def load_checkpoint(filename, map_location=None):
             epoch: int
                 The current epoch number.
     """
-    state = torch.load(filename, map_location)
+    state = torch.load(filepath, map_location)
     return state
     
 
