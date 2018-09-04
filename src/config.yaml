@@ -35,11 +35,12 @@ scheduler:
     type: exponential
     gamma: 0.5
 trainer:
+    environment: jupyter
     batch_size: 64
     num_epochs: 10
     log_every: 5
     num_workers: 8
     checkpoint_dir: /home/cody/abcnn/checkpoints/moveworks/fasttext/tickets/abcnn3_test
     verbose: True
-    device: "cuda:0"
+    device: cuda:0
  
