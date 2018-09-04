@@ -1,11 +1,15 @@
-embed_config:
-    path: /home/cody/abcnn/embeddings/fasttext/tickets/word_vector_from_tickets_skipgram_dim300_subword_min2_max6.bin
-    format: fasttext
-    is_binary: true
-model_config:
-    embedding_size: 300
-    max_length: 20
-    use_all_layer_outputs: true
+loss_fn:
+    type: cross entropy
+model:
+    data_paths:
+        moveworks_train: /home/cody/abcnn/data/moveworks/train.csv
+        moveworks_val: /home/cody/abcnn/data/moveworks/val.csv
+        moveworks_test: /home/cody/abcnn/data/moveworks/test.csv
+    embeddings:
+        format: fasttext
+        is_binary: true
+        path: /home/cody/abcnn/embeddings/fasttext/tickets/word_vector_from_tickets_skipgram_dim300_subword_min2_max6.bin
+        size: 300
     layers:
         - - type: abcnn3
             input_size: 300
@@ -14,26 +18,28 @@ model_config:
             match_score: manhattan
             share_weights: true
             dropout_rate: 0
-          - type: abcnn3
+        - - type: abcnn3
             input_size: 50
             output_size: 50
             width: 3
             match_score: manhattan
             share_weights: true
-            dropout_rate: 0 
-optim_config:
+            dropout_rate: 0
+    max_length: 20
+    use_all_layer_outputs: true 
+optimizer:
+    type: adagrad
     lr: 0.005
     weight_decay: 0.0005
-sched_config:
-    beta: 0.8
-    gamma: 0.5
+scheduler:
     type: exponential
-train_config:
-    batch_size: 20
-    num_epochs: 20
+    gamma: 0.5
+trainer:
+    batch_size: 64
+    num_epochs: 10
     log_every: 5
-    num_workers: 4
-    checkpoint_dir: TODO
-    verbose: False
+    num_workers: 8
+    checkpoint_dir: /home/cody/abcnn/checkpoints/moveworks/fasttext/tickets/abcnn3_test
+    verbose: True
     device: "cuda:0"
  
