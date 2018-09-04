@@ -1,13 +1,19 @@
 # coding=utf-8
 
 import copy
-
+import os
+import torch
 from collections import defaultdict
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import f1_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
 from string import Template
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from tqdm import trange
 
-import utils
+import trainer.utils
 
 PROGRESS_MSG = Template(
     "Macro-level accuracy: ${accuracy}\n"
@@ -16,13 +22,14 @@ PROGRESS_MSG = Template(
     "Macro-level f1: ${f1}"
 )
 
-class ModelTrainer(object):
-    """ This class defines an API for training and evaluating PyTorch models. """
+class MulticlassClassifierTrainer(object):
+    """ This class defines an API for training and evaluating Multiclass
+        Classifiers built using PyTorch. """
 
     def __init__(self, config):
-        """ Initializes the ModelTrainer. 
+        """ Initializes the MulticlassClassifierTrainer. 
 
-            train_config should be a dictionary with the following key-value
+            `config` should be a dictionary with the following key-value
             pairs (all keys are strings):
 
                 batch_size: int
@@ -67,7 +74,7 @@ class ModelTrainer(object):
               model,
               optimizer,
               trainset,
-              scheduler=None
+              scheduler=None,
               valset=None):
         """ Trains the model on the given training set. If a validation set
             is provided, then the model is evaluated on the validation set
@@ -99,7 +106,7 @@ class ModelTrainer(object):
             Returns:
                 None
         """
-        # Reinitialize
+        # Setup
         self._loss_fn = loss_fn
         self._model = model
         self._best_model = copy.deepcopy(model)
@@ -109,16 +116,16 @@ class ModelTrainer(object):
         # Training loop
         self._best_f1 = 0
         self._history = defaultdict(list)
-        for epoch in trange(num_epochs, desc="epochs", position=0):
+        for epoch in trange(self.num_epochs, desc="epochs", position=0):
 
             # Process training set
-            train_results = self._process(trainset, False, True, desc="train")
+            train_results, _ = self._process(trainset, False, True, desc="train")
             if self.verbose:
                 tqdm.write(PROGRESS_MSG.substitute(train_results))
 
             # Process validation set, if provided
             if valset:
-                val_results = self._process(valset, False, False, desc="val")
+                val_results, _ = self._process(valset, False, False, desc="val")
                 if self.verbose:
                     tqdm.write(PROGRESS_MSG.substitute(val_results))
 
@@ -146,7 +153,7 @@ class ModelTrainer(object):
                 filename = "checkpoint_epoch_{}".format(epoch)
                 filepath = os.path.join(self.checkpoint_dir, filename)
                 self._save_checkpoint(filepath)
-                self._save_plots()
+                # self._save_plots()
 
     def predict(self, dataset):
         """ Processes the examples in the dataset for evaluation and
@@ -168,18 +175,23 @@ class ModelTrainer(object):
     def _process(self, 
                  dataset, 
                  use_best,
-                 is_training.
+                 is_training,
                  desc=None):
         """ Processes the examples in the dataset.
 
             Args:
                 dataset: Dataset
                     Contains the examples and their labels.
-                use_best: string 
+                use_best: bool 
                     Specifies whether to use the current or best model
-                    for processing examples.
+                    for processing examples. The best model should be used
+                    for evaluation or prediction, and the current model
+                    should be used for training and validation.
                 is_training: bool
                     Specifies whether or not to update model weights.
+                    Model weights should only be updated during training.
+                    During validation, evaluation, or prediction, this
+                    should be False.
                 desc: string
                     Optional, write a short description at the front
                     of the progress bar.
@@ -198,6 +210,7 @@ class ModelTrainer(object):
         # Process batches
         actual = []
         predicted = []
+        total_loss = 0
         dataloader = \
             DataLoader(
                 dataset,
@@ -214,11 +227,11 @@ class ModelTrainer(object):
             preds = torch.argmax(scores, dim=1)
 
             # Store actual and predicted labels
-            actual.extend(targets.cpu().tolist())
+            actual.extend(labels.cpu().tolist())
             predicted.extend(preds.cpu().tolist())
 
             # Update loss
-            batch_loss = torch.sum(self._loss_fn(scores, targets))
+            batch_loss = torch.sum(self._loss_fn(scores, labels))
             total_loss += batch_loss
 
             # Backward pass
@@ -262,15 +275,7 @@ class ModelTrainer(object):
                 tensors: list of tensors / modules
                     Contains the tensors / modules moved to the proper device.
         """
-        if self.device:
-            if "cuda" in self.device:
-                torch.cuda.empty_cache()
-            return list(map(lambda t: t.to_device(device=self.device), tensors)
-        elif torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            return list(map(lambda t: t.cuda(), tensors))
-        else:
-            return list(map(lambda t: t.cpu(), tensors))
+        return trainer.utils.move_to_device(self.device, *tensors)
 
     def _update_best_model(self, results):
         """ Helper function to update the best model observed.
@@ -291,7 +296,6 @@ class ModelTrainer(object):
             filepath = os.path.join(self.checkpoint_dir, "best_checkpoint")
             self._save_checkpoint(filepath)
 
-
     def _save_checkpoint(self, filepath):
         """ Saves a checkpoint of the model at the given filepath.
 
@@ -308,7 +312,7 @@ class ModelTrainer(object):
             Returns:
                 None
         """
-        utils.save_checkpoint(
+        trainer.utils.save_checkpoint(
             self._model, 
             self._optimizer, 
             self._history, 
@@ -326,7 +330,7 @@ class ModelTrainer(object):
             Returns:
                 None
         """
-        utils.generate_plots(
+        trainer.utils.generate_plots(
             self._history, 
             self.checkpoint_dir
         )

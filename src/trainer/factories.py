@@ -8,7 +8,7 @@ def loss_fn_factory(config):
     """ A convenience function that initializes some of the common loss 
         functions supported by PyTorch.
 
-        Includes:
+        Supports:
             - l1
             - mean squared error
             - binary cross entropy
@@ -16,6 +16,9 @@ def loss_fn_factory(config):
             - cross entropy
             - negative log likelihood
             - kullback-leibler divergence
+
+        For more information on these loss functions, see the PyTorch
+        documentation.
 
         Args:
             config: dict
@@ -91,13 +94,15 @@ def optimizer_factory(config, params):
     """ A convenience function that initializes some of the common optimizers
         supported by PyTorch.
         
-        Includes:
+        Supports:
             - adadelta
             - adagrad
             - adam
             - adamax
             - rmsprop
             - sgd
+
+        For more information on these optimizers, see the PyTorch documentation.
 
         Args:
             config: dict
@@ -168,15 +173,55 @@ def optimizer_factory(config, params):
 
 
 def scheduler_factory(config, optimizer):
-    """ Initializes a learning rate scheduler using the given configuration. """
-    if config["type"] == "lambda":
-        return optim.lr_scheduler.LambdaLR(optimizer, **config)
-    elif config["type"] == "step":
-        return optim.lr_scheduler.StepLR(optimizer, **config)
-    elif config["type"] == "multistep":
-        return optim.lr_scheduler.MultiStepLR(optimizer, **config)
+    """ A convenience function that initializes some of the common learning
+        rate schedulers supported by PyTorch.
+       
+        Supports:
+            - step learning rate
+            - exponential learning rate
+            - reduce learning rate on plateau
+
+        For more information about these learning rate schedulers, see
+        the PyTorch documentation.
+
+        Args:
+            config: dict
+                Contains the parameters needed to initialize the scheduler.
+            optimizer: optim.Optimizer
+                The optimizer for which we want to adjust the learning rate.
+        
+        Returns:
+            scheduler: optim.lr_scheduler
+                The learning rate scheduler.
+    """
+    # Get all of the possible arguments we might need
+
+    if config["type"] == "step":
+        return optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=config.get("step_size", 5),
+            gamma=config.get("gamma", 0.1),
+            last_epoch=config.get("last_epoch", -1)
+        )
     elif config["type"] == "exponential":
-        return optim.lr_scheduler.ExponentialLR(optimizer, **config)
+        return optim.lr_scheduler.ExponentialLR(
+            optimizer, 
+            gamma=config.get("gamma", 0.5),
+            last_epoch=config.get("last_epoch", -1)
+        )
+    elif config["type"] == "plateau":
+        return optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=config.get("mode", "min"),
+            factor=config.get("factor", 0.1),
+            patience=config.get("patience", 10),
+            verbose=config.get("verbose", False),
+            threshold=config.get("threshold", 1e-4),
+            threshold_mode=config.get("threshold_mode", "rel"),
+            cooldown=config.get("cooldown", 0),
+            min_lr=config.get("min_lr", 0),
+            eps=config.get("eps", 1e-8)
+        )
     else:
         raise ValueError("Unrecognized scheduler type")
 

@@ -23,7 +23,6 @@ from model.model import Model
 from model.layers.layer import CNNLayer
 from model.pooling.allap import AllAP
 from model.pooling.widthap import WidthAP
-from process import setup_dataset
 
 class EmbeddingFormatError(Exception):
     """ Raised when an unrecognized embedding format is specified. """
@@ -51,7 +50,6 @@ def read_config(config_path):
     with open(config_path, "r") as stream:
         config = yaml.load(stream)
         return config
-
 
 def setup(config):
     """ Handles all of the setup needed to run an ABCNN model.
@@ -101,9 +99,9 @@ def setup_model(config, embeddings):
 
     # Create the layers
     embeddings_size = config["embeddings"]["size"]
-    max_length = config["model"]["max_length"]
-    layer_configs = config["model"]["layers"]
-    use_all_layer_outputs = config["model"]["use_all_layer_outputs"]
+    max_length = config["max_length"]
+    layer_configs = config["layers"]
+    use_all_layer_outputs = config["use_all_layer_outputs"]
     
     # Initialize the layers
     layers = []
@@ -183,10 +181,10 @@ def setup_datasets(config):
     question_cols = ["question1", "question2"]
     examples = {} # Contains the featurized examples for each dataset
     labels = {} # Contains the labels for each dataset
-    texts = {} # Contains the parsed text for each dataset
+    # texts = {} # Contains the parsed text for each dataset
 
     # Process each dataset
-    max_length = config["model"]["max_length"]
+    max_length = config["max_length"]
     data_paths = config["data_paths"]
     datasets = {name: pd.read_csv(path) for name, path in data_paths.items()}
     for name, dataset in datasets.items():
@@ -194,7 +192,7 @@ def setup_datasets(config):
         # Process texts
         classes = []
         indexed_examples = []
-        parsed_texts = []
+        # parsed_texts = []
         num_examples = len(dataset)
         for index, example in tqdm(dataset.iterrows(), desc=name, total=num_examples):
 
@@ -232,17 +230,17 @@ def setup_datasets(config):
     
                 # Store parsed text and index tensors
                 index_map.append(indexes)
-                parsed_text.append(words)
+                # parsed_text.append(words)
 
             # Store processed text and index tensor map and label
             classes.append(example["is_duplicate"])
             indexed_examples.append(index_map)
-            parsed_texts.append(parsed_text)
+            # parsed_texts.append(parsed_text)
 
         # Save the processed result
         labels[name] = torch.LongTensor(classes)
         examples[name] = torch.LongTensor(indexed_examples)
-        texts[name] = parsed_texts
+        # texts[name] = parsed_texts
 
     return examples, labels, word2index
 
